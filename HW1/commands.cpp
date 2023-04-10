@@ -7,15 +7,18 @@
 // Parameters: pointer to jobs, command string
 // Returns: 0 - success,1 - failure
 //**************************************************************************************
+
+char history[MAX_LINE_SIZE] = "0";
+
 int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 {
 	char* cmd; 
 	char* args[MAX_ARG];
 	char pwd[MAX_LINE_SIZE];
-	char* delimiters = " \t\n";  
+	char delimiters[] = " \t\n";
 	int i = 0, num_arg = 0;
-	bool illegal_cmd = FALSE; // illegal command
-    	cmd = strtok(lineSize, delimiters);
+	bool illegal_cmd = false; // illegal command
+    cmd = strtok(lineSize, delimiters);
 	if (cmd == NULL)
 		return 0; 
    	args[0] = cmd;
@@ -33,13 +36,35 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 /*************************************************/
 	if (!strcmp(cmd, "cd") ) 
 	{
-		
+		if (num_arg > 1){
+			cout << "smash error: cd: too many arguments" << endl;;
+		}
+		else if (!strcmp(args[1], "..")){
+			strcpy(history, getcwd(pwd, MAX_LINE_SIZE));
+			chdir("..");
+		}
+		else if (strcmp(args[1], "-")){
+			strcpy(history, getcwd(pwd, MAX_LINE_SIZE));
+			chdir(args[1]);
+		}
+		else{
+			if (!strcmp(history, "0")){
+				cout << "smash error: cd: OLDPWD not set" << endl;
+			}
+			else{
+				char history_tmp[MAX_LINE_SIZE];
+				strcpy(history_tmp, getcwd(pwd, MAX_LINE_SIZE));
+				chdir(history);
+				strcpy(history, history_tmp);
+			}
+		}
+
 	} 
 	
 	/*************************************************/
 	else if (!strcmp(cmd, "pwd")) 
 	{
-		
+		cout << getcwd(pwd, MAX_LINE_SIZE) << endl;
 	}
 	
 	/*************************************************/
@@ -56,7 +81,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else if (!strcmp(cmd, "showpid")) 
 	{
-		
+		cout << "smash pid is " << getpid() << endl;
 	}
 	/*************************************************/
 	else if (!strcmp(cmd, "fg")) 
@@ -79,7 +104,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
  		ExeExternal(args, cmdString);
 	 	return 0;
 	}
-	if (illegal_cmd == TRUE)
+	if (illegal_cmd == true)
 	{
 		printf("smash error: > \"%s\"\n", cmdString);
 		return 1;
@@ -114,6 +139,7 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
 					*/
 			
 			default:
+					cout << "yeah";
                 	// Add your code here
 					
 					/* 
@@ -151,7 +177,7 @@ int BgCmd(char* lineSize, void* jobs)
 {
 
 	char* Command;
-	char* delimiters = " \t\n";
+	char delimiters[] = " \t\n";
 	char *args[MAX_ARG];
 	if (lineSize[strlen(lineSize)-2] == '&')
 	{
