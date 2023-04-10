@@ -13,7 +13,7 @@ static int j = 1;
 
 class Job
 {
-	static int cur_serial = 0;
+	static int cur_serial;
 
 	public:
 	int serial;
@@ -33,13 +33,29 @@ class Job
 		this->finished = false;
 	}
 
-	bool operator<(const Job& job1, const Job& job2){
-		return (job1.serial<job2.serial);
+	void update_serial(int new_serial){
+		cur_serial = new_serial;
 	}
-
-	static int serial_update();
 };
 
+int Job::cur_serial = 0;
+std::list <Job> jobs;
+
+int list_update(){
+	list<Job>::iterator iter;
+	int last_serial = 0;
+	for(iter = jobs.end(); iter != jobs.begin(); iter--){
+		if(waitpid((pid_t)(((Job*)iter)->proccess_id), NULL, WNOHANG)){
+			jobs.erase(iter);
+		}
+		else{
+			if(((Job*)iter)->serial > last_serial){
+				last_serial = ((Job*)iter)->serial;
+			}
+		}
+	}
+	return last_serial;
+}
 
 
 int ExeCmd(void* jobs, char* lineSize, char* cmdString)
@@ -152,7 +168,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 void ExeExternal(char *args[MAX_ARG], char* cmdString)
 {
 	int pID;
-	cout << j << endl;
+	update_serial(list_update());
     	switch(pID = fork()) 
 	{
     		case -1: 
@@ -174,12 +190,9 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
                		break;
 
 			default:
-					cout << pID << endl;
-                	// Add your code here
+
+                	jobs.push_back(Job(cmdString, pID, time(NULL)));
 					
-					/* 
-					your code
-					*/
 	}
 }
 //**************************************************************************************
