@@ -1,4 +1,4 @@
-/*	smash.c
+/*	smash.cpp
 main file. This file contains the main function of smash
 *******************************************************************/
 #include <sys/types.h>

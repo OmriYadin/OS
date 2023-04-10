@@ -1,4 +1,4 @@
-// signals.c
+// signals.cpp
 // contains signal handler funtions
 // contains the function/s that set the signal handlers
 

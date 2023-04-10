@@ -1,4 +1,4 @@
-//		commands.c
+//		commands.cpp
 //********************************************
 #include "commands.h"
 //********************************************
@@ -19,11 +19,11 @@ class Job
 	int serial;
 	char command[MAX_LINE_SIZE];
 	int proccess_id;
-	int proccess_time;
+	double proccess_time;
 	bool stopped;
 	bool finished;
 
-	Job(char command[], int id, int time){
+	Job(char command[], int id, double time){
 		cur_serial++;
 		this->serial = cur_serial;
 		strcpy(this->command, command);
@@ -41,20 +41,20 @@ class Job
 int Job::cur_serial = 0;
 std::list <Job> jobs;
 
-int list_update(){
+void list_update(){
 	list<Job>::iterator iter;
 	int last_serial = 0;
 	for(iter = jobs.end(); iter != jobs.begin(); iter--){
-		if(waitpid((pid_t)(((Job*)iter)->proccess_id), NULL, WNOHANG)){
+		if(waitpid((pid_t)(iter->proccess_id), NULL, WNOHANG)){
 			jobs.erase(iter);
 		}
 		else{
-			if(((Job*)iter)->serial > last_serial){
-				last_serial = ((Job*)iter)->serial;
+			if(iter->serial > last_serial){
+				last_serial = iter->serial;
 			}
 		}
 	}
-	return last_serial;
+	iter->update_serial(last_serial);
 }
 
 
@@ -118,18 +118,51 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else if (!strcmp(cmd, "mkdir"))
 	{
- 		
+
 	}
 	/*************************************************/
 	
 	else if (!strcmp(cmd, "jobs")) 
 	{
- 		cout << j << endl;
+ 		list_update();
+ 		list<Job>::iterator iter;
+ 		for (iter = jobs.begin(); iter != jobs.end(); iter++){
+ 			double job_time = difftime(time(NULL), iter->proccess_time);
+ 			cout << "[" << iter->proccess_id << "] " << iter->command << " : "
+ 					<< iter->proccess_id << job_time << "secs";
+ 			if (iter->stopped){
+ 				cout << " (stopped)";
+ 			}
+ 			cout << endl;
+ 		}
 	}
 	/*************************************************/
 	else if (!strcmp(cmd, "showpid")) 
 	{
 		cout << "smash pid is " << getpid() << endl;
+	}
+	/*************************************************/
+	else if (!strcmp(cmd, "kill"))
+	{
+		bool is_found = false;
+		if (num_arg > 2){
+			cout << "smash error: kill: invalid arguments" << endl;
+		}
+ 		list<Job>::iterator iter_kill;
+ 		for (iter_kill = jobs.begin(); iter_kill != jobs.end(); iter_kill++){
+ 			if (iter_kill->serial == atoi(args[2])){
+ 				is_found = true;
+ 				if(!kill(iter_kill->proccess_id, abs(atoi(args[1])))){
+ 					cout << "signal number " << abs(atoi(args[1])) << "was sent to pid " << iter_kill->proccess_id << endl;
+ 				}
+ 				else{
+ 					cout << "smash error: kill: invalid arguments" << endl;
+ 				}
+ 			}
+ 		}
+ 		if (is_found == false){
+ 			cout << "smash error: kill: job-id " << args[2] << " does not exist" << endl;
+ 		}
 	}
 	/*************************************************/
 	else if (!strcmp(cmd, "fg")) 
@@ -168,8 +201,8 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 void ExeExternal(char *args[MAX_ARG], char* cmdString)
 {
 	int pID;
-	update_serial(list_update());
-    	switch(pID = fork()) 
+	list_update();
+    switch(pID = fork())
 	{
     		case -1: 
 					// Add your code here (error)
@@ -183,15 +216,10 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
                 	// Child Process
                		setpgrp();
 
-			        // Add your code here (execute an external command)
-					/* 
-					your code
-					*/
                		break;
 
 			default:
 
-                	jobs.push_back(Job(cmdString, pID, time(NULL)));
 					
 	}
 }
@@ -230,11 +258,7 @@ int BgCmd(char* lineSize, void* jobs)
 	if (lineSize[strlen(lineSize)-2] == '&')
 	{
 		lineSize[strlen(lineSize)-2] = '\0';
-		// Add your code here (execute a in the background)
-					
-		/* 
-		your code
-		*/
+		jobs.push_back(Job(cmdString, pID, time(NULL)));
 		
 	}
 	return -1;
