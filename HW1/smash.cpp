@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     char cmdString[MAX_LINE_SIZE]; 	   
 
 	
-	//signal declaretions
+	//signal declarations
 	//NOTE: the signal handlers and the function/s that sets the handler should be found in siganls.c
 	 /* add your code here */
 	
