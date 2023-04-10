@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <set>
 #include <sys/types.h>
 #include <sys/wait.h>
 #define MAX_LINE_SIZE 80

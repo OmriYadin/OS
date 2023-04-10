@@ -9,6 +9,38 @@
 //**************************************************************************************
 
 char history[MAX_LINE_SIZE] = "0";
+static int j = 1;
+
+class Job
+{
+	static int cur_serial = 0;
+
+	public:
+	int serial;
+	char command[MAX_LINE_SIZE];
+	int proccess_id;
+	int proccess_time;
+	bool stopped;
+	bool finished;
+
+	Job(char command[], int id, int time){
+		cur_serial++;
+		this->serial = cur_serial;
+		strcpy(this->command, command);
+		this->proccess_id = id;
+		this->proccess_time = time;
+		this->stopped = false;
+		this->finished = false;
+	}
+
+	bool operator<(const Job& job1, const Job& job2){
+		return (job1.serial<job2.serial);
+	}
+
+	static int serial_update();
+};
+
+
 
 int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 {
@@ -76,7 +108,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 	
 	else if (!strcmp(cmd, "jobs")) 
 	{
- 		
+ 		cout << j << endl;
 	}
 	/*************************************************/
 	else if (!strcmp(cmd, "showpid")) 
@@ -120,6 +152,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 void ExeExternal(char *args[MAX_ARG], char* cmdString)
 {
 	int pID;
+	cout << j << endl;
     	switch(pID = fork()) 
 	{
     		case -1: 
@@ -128,18 +161,20 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
 					/* 
 					your code
 					*/
+    				break;
+
         	case 0 :
                 	// Child Process
                		setpgrp();
-					
+
 			        // Add your code here (execute an external command)
-					
 					/* 
 					your code
 					*/
-			
+               		break;
+
 			default:
-					cout << "yeah";
+					cout << pID << endl;
                 	// Add your code here
 					
 					/* 
