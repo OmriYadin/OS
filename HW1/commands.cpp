@@ -9,44 +9,31 @@
 //**************************************************************************************
 
 char history[MAX_LINE_SIZE] = "0";
-static int j = 1;
 
-class Job
-{
-	static int cur_serial;
 
-	public:
-	int serial;
-	char command[MAX_LINE_SIZE];
-	int proccess_id;
-	double proccess_time;
-	bool stopped;
-	bool finished;
+Job::Job(char command[], int id, double time){
+	cur_serial++;
+	this->serial = cur_serial;
+	strcpy(this->command, command);
+	this->proccess_id = id;
+	this->proccess_time = time;
+	this->stopped = false;
+	this->finished = false;
+}
 
-	Job(char command[], int id, double time){
-		cur_serial++;
-		this->serial = cur_serial;
-		strcpy(this->command, command);
-		this->proccess_id = id;
-		this->proccess_time = time;
-		this->stopped = false;
-		this->finished = false;
-	}
-
-	void update_serial(int new_serial){
-		cur_serial = new_serial;
-	}
-};
+void Job::update_serial(int new_serial){
+	cur_serial = new_serial;
+}
 
 int Job::cur_serial = 0;
-std::list <Job> jobs;
 
-void list_update(){
+
+void list_update(list<Job> *jobs){
 	list<Job>::iterator iter;
 	int last_serial = 0;
-	for(iter = jobs.end(); iter != jobs.begin(); iter--){
+	for(iter = jobs->end(); iter != jobs->begin(); iter--){
 		if(waitpid((pid_t)(iter->proccess_id), NULL, WNOHANG)){
-			jobs.erase(iter);
+			jobs->erase(iter);
 		}
 		else{
 			if(iter->serial > last_serial){
@@ -58,7 +45,7 @@ void list_update(){
 }
 
 
-int ExeCmd(void* jobs, char* lineSize, char* cmdString)
+int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 {
 	char* cmd; 
 	char* args[MAX_ARG];
@@ -124,9 +111,9 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 	
 	else if (!strcmp(cmd, "jobs")) 
 	{
- 		list_update();
+ 		list_update(jobs);
  		list<Job>::iterator iter;
- 		for (iter = jobs.begin(); iter != jobs.end(); iter++){
+ 		for (iter = jobs->begin(); iter != jobs->end(); iter++){
  			double job_time = difftime(time(NULL), iter->proccess_time);
  			cout << "[" << iter->proccess_id << "] " << iter->command << " : "
  					<< iter->proccess_id << job_time << "secs";
@@ -149,7 +136,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 			cout << "smash error: kill: invalid arguments" << endl;
 		}
  		list<Job>::iterator iter_kill;
- 		for (iter_kill = jobs.begin(); iter_kill != jobs.end(); iter_kill++){
+ 		for (iter_kill = jobs->begin(); iter_kill != jobs->end(); iter_kill++){
  			if (iter_kill->serial == atoi(args[2])){
  				is_found = true;
  				if(!kill(iter_kill->proccess_id, abs(atoi(args[1])))){
@@ -182,6 +169,7 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else // external command
 	{
+		list_update(jobs);
  		ExeExternal(args, cmdString);
 	 	return 0;
 	}
@@ -201,7 +189,6 @@ int ExeCmd(void* jobs, char* lineSize, char* cmdString)
 void ExeExternal(char *args[MAX_ARG], char* cmdString)
 {
 	int pID;
-	list_update();
     switch(pID = fork())
 	{
     		case -1: 
@@ -219,7 +206,7 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
                		break;
 
 			default:
-
+					cout << "..." << endl;
 					
 	}
 }
@@ -249,7 +236,7 @@ int ExeComp(char* lineSize)
 // Parameters: command string, pointer to jobs
 // Returns: 0- BG command -1- if not
 //**************************************************************************************
-int BgCmd(char* lineSize, void* jobs)
+int BgCmd(char* lineSize, list<Job> *jobs)
 {
 
 	char* Command;
@@ -258,7 +245,7 @@ int BgCmd(char* lineSize, void* jobs)
 	if (lineSize[strlen(lineSize)-2] == '&')
 	{
 		lineSize[strlen(lineSize)-2] = '\0';
-		jobs.push_back(Job(cmdString, pID, time(NULL)));
+		jobs->push_back(Job(lineSize, getpid(), time(NULL)));
 		
 	}
 	return -1;

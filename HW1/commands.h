@@ -15,9 +15,29 @@
 #define MAX_ARG 20
 using namespace std;
 //typedef enum { FALSE , TRUE } bool;
+
+class Job
+{
+	static int cur_serial;
+
+	public:
+	int serial;
+	char command[MAX_LINE_SIZE];
+	int proccess_id;
+	double proccess_time;
+	bool stopped;
+	bool finished;
+
+	Job(char command[], int id, double time);
+	void update_serial(int new_serial);
+};
+
 int ExeComp(char* lineSize);
-int BgCmd(char* lineSize, void* jobs);
-int ExeCmd(void* jobs, char* lineSize, char* cmdString);
+int BgCmd(char* lineSize, list<Job> *jobs);
+int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString);
 void ExeExternal(char *args[MAX_ARG], char* cmdString);
+
+
+
 #endif
 
