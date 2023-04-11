@@ -26,11 +26,12 @@ class Job
 	public:
 	int serial;
 	char command[MAX_LINE_SIZE];
-	int proccess_id;
-	double proccess_time;
+	int process_id;
+	double process_time;
 	bool stopped;
+	bool is_bg;
 
-	Job(char command[], int id, double time);
+	Job(char command[], int id, double time, bool is_bg);
 	void update_serial(int new_serial);
 };
 

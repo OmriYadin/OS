@@ -12,13 +12,14 @@ char history[MAX_LINE_SIZE] = "0";
 
 int Job::cur_serial = 0;
 
-Job::Job(char command[], int id, double time){
+Job::Job(char command[], int id, double time, bool is_bg){
 	cur_serial++;
 	this->serial = cur_serial;
 	strcpy(this->command, command);
-	this->proccess_id = id;
-	this->proccess_time = time;
+	this->process_id = id;
+	this->process_time = time;
 	this->stopped = false;
+	this->is_bg = is_bg;
 }
 
 void Job::update_serial(int new_serial){
@@ -32,7 +33,7 @@ void list_update(list<Job> *jobs){
 	list<Job>::iterator iter;
 	int last_serial = 0;
 	for(iter = jobs->end(); iter != jobs->begin(); iter--){
-		if(waitpid((pid_t)(iter->proccess_id), NULL, WNOHANG)){
+		if(waitpid((pid_t)(iter->process_id), NULL, WNOHANG)){
 			jobs->erase(iter);
 		}
 		else{
@@ -115,9 +116,9 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
  		list_update(jobs);
  		list<Job>::iterator iter;
  		for (iter = jobs->begin(); iter != jobs->end(); iter++){
- 			double job_time = difftime(time(NULL), iter->proccess_time);
- 			cout << "[" << iter->proccess_id << "] " << iter->command << " : "
- 					<< iter->proccess_id << job_time << "secs";
+ 			double job_time = difftime(time(NULL), iter->process_time);
+ 			cout << "[" << iter->process_id << "] " << iter->command << " : "
+ 					<< iter->process_id << job_time << "secs";
  			if (iter->stopped){
  				cout << " (stopped)";
  			}
@@ -140,8 +141,8 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
  		for (iter_kill = jobs->begin(); iter_kill != jobs->end(); iter_kill++){
  			if (iter_kill->serial == atoi(args[2])){
  				is_found = true;
- 				if(!kill(iter_kill->proccess_id, abs(atoi(args[1])))){
- 					cout << "signal number " << abs(atoi(args[1])) << "was sent to pid " << iter_kill->proccess_id << endl;
+ 				if(!kill(iter_kill->process_id, abs(atoi(args[1])))){
+ 					cout << "signal number " << abs(atoi(args[1])) << "was sent to pid " << iter_kill->process_id << endl;
  				}
  				else{
  					cout << "smash error: kill: invalid arguments" << endl;
@@ -160,8 +161,9 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 				cout << "smash error: fg: jobs list is empty" << endl;
 			}
 			else {
-				int proccess = jobs->end()->proccess_id;
-				waitpid(proccess, NULL, 0);
+				int process = jobs->end()->process_id;
+				jobs->end()->is_bg = false;
+				waitpid(process, NULL, 0);
 			}
 		}
 		else if (num_arg == 1){
@@ -171,17 +173,18 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 			}
 			else{
 				list<Job>::iterator iter;
-				int proccess = 0;
+				int process = 0;
 				for(iter = jobs->end(); iter != jobs->begin(); iter--){
 					if(iter->serial == job){
-						proccess = iter->proccess_id;
+						process = iter->process_id;
+						iter->is_bg = false;
 					}
 				}
-				if (proccess == 0){
+				if (process == 0){
 					cout << "smash error: fg: job-id " << job << " does not exist" << endl;
 				}
 				else {
-					waitpid(proccess, NULL, 0);
+					waitpid(process, NULL, 0);
 				}
 			}
 		}
@@ -201,7 +204,8 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
   			if (iter->stopped == true){
   				cout << iter->command << endl;
   				iter->stopped = false;
-  				kill(iter->proccess_id, SIGCONT);
+  				iter->is_bg = true;
+  				kill(iter->process_id, SIGCONT);
   			}
   			else {
   				cout << "smash error: bg: there are no stopped jobs to resume" << endl;
@@ -215,7 +219,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
   			}
   			else {
 				list<Job>::iterator iter = jobs->begin();
-				int proccess = 0;
+				int process = 0;
 				while ((iter != jobs->end()) || (iter->serial != job)){
 					iter++;
 				}
@@ -230,7 +234,8 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 					else {
 		  				cout << iter->command << endl;
 		  				iter->stopped = false;
-						kill(iter->proccess_id, SIGCONT);
+		  				iter->is_bg = true;
+						kill(iter->process_id, SIGCONT);
 					}
 				}
   			}
@@ -242,7 +247,31 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else if (!strcmp(cmd, "quit"))
 	{
-   		
+   		if (num_arg == 0){
+   			exit(0);
+   		}
+   		else{
+   			if (!strcmp(args[1], "kill")){
+   				list<Job>::iterator iter;
+   				for (iter = jobs->begin(); iter != jobs->end(); iter++){
+   					cout << "[" << iter->serial << "] " << iter->command << "-Sending SIGTERM...";
+   					kill(iter->process_id, SIGTERM);
+   					sleep(5);
+   					if (waitpid((pid_t)(iter->process_id), NULL, WNOHANG)){
+   						cout << " Done." << endl;
+   					}
+   					else{
+   						cout << " (5 sec passed) Sending SIGKILL...";
+   						kill(iter->process_id, SIGKILL);
+   						cout << " Done." << endl;
+   					}
+   				}
+   				exit(0);
+   			}
+   			else {
+   				exit(0);
+   			}
+   		}
 	} 
 	/*************************************************/
 	else if (!strcmp(cmd, "diff")){
@@ -340,9 +369,10 @@ int BgCmd(char* lineSize, list<Job> *jobs)
 	char *args[MAX_ARG];
 	if (lineSize[strlen(lineSize)-2] == '&')
 	{
+
 		lineSize[strlen(lineSize)-2] = '\0';
-		jobs->push_back(Job(lineSize, getpid(), time(NULL)));
-		
+
+		return 0;
 	}
 	return -1;
 }
