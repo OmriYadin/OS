@@ -10,6 +10,7 @@
 
 char history[MAX_LINE_SIZE] = "0";
 
+int Job::cur_serial = 0;
 
 Job::Job(char command[], int id, double time){
 	cur_serial++;
@@ -18,14 +19,13 @@ Job::Job(char command[], int id, double time){
 	this->proccess_id = id;
 	this->proccess_time = time;
 	this->stopped = false;
-	this->finished = false;
 }
 
 void Job::update_serial(int new_serial){
 	cur_serial = new_serial;
 }
 
-int Job::cur_serial = 0;
+
 
 
 void list_update(list<Job> *jobs){
@@ -64,6 +64,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 			num_arg++; 
  
 	}
+
 /*************************************************/
 // Built in Commands PLEASE NOTE NOT ALL REQUIRED
 // ARE IN THIS CHAIN OF IF COMMANDS. PLEASE ADD
@@ -154,12 +155,89 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else if (!strcmp(cmd, "fg")) 
 	{
-		
+		if (num_arg == 0){
+			if (jobs->empty()){
+				cout << "smash error: fg: jobs list is empty" << endl;
+			}
+			else {
+				int proccess = jobs->end()->proccess_id;
+				waitpid(proccess, NULL, 0);
+			}
+		}
+		else if (num_arg == 1){
+			int job = atoi(args[1]);
+			if(job <= 0){
+				cout << "smash error: fg: invalid arguments" << endl;
+			}
+			else{
+				list<Job>::iterator iter;
+				int proccess = 0;
+				for(iter = jobs->end(); iter != jobs->begin(); iter--){
+					if(iter->serial == job){
+						proccess = iter->proccess_id;
+					}
+				}
+				if (proccess == 0){
+					cout << "smash error: fg: job-id " << job << " does not exist" << endl;
+				}
+				else {
+					waitpid(proccess, NULL, 0);
+				}
+			}
+		}
+		else {
+			cout << "smash error: fg: invalid arguments" << endl;
+		}
+
 	} 
 	/*************************************************/
 	else if (!strcmp(cmd, "bg")) 
 	{
-  		
+  		if (num_arg == 0){
+  			list<Job>::iterator iter = jobs->end();
+  			while ((iter != jobs->begin()) || (iter->stopped != true)){
+  				iter--;
+  			}
+  			if (iter->stopped == true){
+  				cout << iter->command << endl;
+  				iter->stopped = false;
+  				kill(iter->proccess_id, SIGCONT);
+  			}
+  			else {
+  				cout << "smash error: bg: there are no stopped jobs to resume" << endl;
+  			}
+  		}
+
+  		else if (num_arg == 1){
+  			int job = atoi(args[1]);
+  			if (job <= 0){
+  				cout << "smash error: bg: invalid arguments" << endl;
+  			}
+  			else {
+				list<Job>::iterator iter = jobs->begin();
+				int proccess = 0;
+				while ((iter != jobs->end()) || (iter->serial != job)){
+					iter++;
+				}
+
+				if (iter->serial != job){
+					cout << "smash error: bg: job-id " << job << " does not exist" << endl;
+				}
+				else {
+					if (iter->stopped != true){
+						cout << "smash error: bg: job-id " << job << " is already running in the background" << endl;
+					}
+					else {
+		  				cout << iter->command << endl;
+		  				iter->stopped = false;
+						kill(iter->proccess_id, SIGCONT);
+					}
+				}
+  			}
+  		}
+  		else {
+  			cout << "smash error: bg: invalid arguments" << endl;
+  		}
 	}
 	/*************************************************/
 	else if (!strcmp(cmd, "quit"))
@@ -167,6 +245,26 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
    		
 	} 
 	/*************************************************/
+	else if (!strcmp(cmd, "diff")){
+		if (num_arg != 2){
+			cout << "smash error: diff: invalid arguments" << endl;
+		}
+
+		ifstream first(args[1]);
+		ifstream second(args[2]);
+		stringstream first_buf;
+		stringstream second_buf;
+		first_buf << first.rdbuf();
+		second_buf << second.rdbuf();
+		if(!first_buf.str().compare(second_buf.str())){
+			cout << 1 << endl;
+		}
+		else {
+			cout << 0 << endl;
+		}
+
+	}
+	/************************************************/
 	else // external command
 	{
 		list_update(jobs);
@@ -193,10 +291,7 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
 	{
     		case -1: 
 					// Add your code here (error)
-					
-					/* 
-					your code
-					*/
+    				perror("smash error: fork failed");
     				break;
 
         	case 0 :
@@ -239,6 +334,7 @@ int ExeComp(char* lineSize)
 int BgCmd(char* lineSize, list<Job> *jobs)
 {
 
+	list_update(jobs);
 	char* Command;
 	char delimiters[] = " \t\n";
 	char *args[MAX_ARG];

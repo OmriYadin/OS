@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <sstream>
+#include <fstream>
+#include <string>
 #include <math.h>
 #include <list>
 #include <sys/types.h>
@@ -26,11 +29,12 @@ class Job
 	int proccess_id;
 	double proccess_time;
 	bool stopped;
-	bool finished;
 
 	Job(char command[], int id, double time);
 	void update_serial(int new_serial);
 };
+
+
 
 int ExeComp(char* lineSize);
 int BgCmd(char* lineSize, list<Job> *jobs);
