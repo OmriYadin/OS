@@ -8,6 +8,8 @@
 // Returns: 0 - success,1 - failure
 //**************************************************************************************
 
+extern int cur_pid;
+
 char history[MAX_LINE_SIZE] = "0";
 
 int Job::cur_serial = 0;
@@ -113,6 +115,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	
 	else if (!strcmp(cmd, "jobs")) 
 	{
+
  		list_update(jobs);
  		list<Job>::iterator iter;
  		for (iter = jobs->begin(); iter != jobs->end(); iter++){
@@ -297,7 +300,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	else // external command
 	{
 		list_update(jobs);
- 		ExeExternal(args, cmdString);
+ 		ExeExternal(args, cmdString, jobs);
 	 	return 0;
 	}
 	if (illegal_cmd == true)
@@ -313,7 +316,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 // Parameters: external command arguments, external command string
 // Returns: void
 //**************************************************************************************
-void ExeExternal(char *args[MAX_ARG], char* cmdString)
+void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs)
 {
 	int pID;
     switch(pID = fork())
@@ -326,11 +329,23 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString)
         	case 0 :
                 	// Child Process
                		setpgrp();
-
-               		break;
+               		execvp(args[0], args);
+               		exit(0);
 
 			default:
-					cout << "..." << endl;
+					int status;
+					cur_pid = pID;
+               		signal(SIGINT, ctrl_c_fg_handler);
+               		signal(SIGTSTP, ctrl_z_fg_handler);
+					waitpid(pID, &status, WUNTRACED);
+					cur_pid = getpid();
+               		signal(SIGINT, ctrl_c_smash_handler);
+               		signal(SIGTSTP, ctrl_z_smash_handler);
+					if (WIFSTOPPED(status)){
+						jobs->push_back(
+								Job(cmdString, pID, time(NULL), false));
+						jobs->end()->stopped = true;
+					}
 					
 	}
 }

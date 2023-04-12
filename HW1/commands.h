@@ -14,6 +14,7 @@
 #include <list>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include "signals.h"
 #define MAX_LINE_SIZE 80
 #define MAX_ARG 20
 using namespace std;
@@ -40,7 +41,7 @@ class Job
 int ExeComp(char* lineSize);
 int BgCmd(char* lineSize, list<Job> *jobs);
 int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString);
-void ExeExternal(char *args[MAX_ARG], char* cmdString);
+void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs);
 
 
 
