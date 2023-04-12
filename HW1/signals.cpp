@@ -8,6 +8,7 @@
 #include "signals.h"
 extern int cur_pid;
 
+
 void ctrl_c_smash_handler(int sig_num){
 	sigset_t mask_set;
 	sigset_t old_set;
@@ -21,11 +22,11 @@ void ctrl_c_fg_handler(int sig_num){
 	sigset_t mask_set;
 	sigset_t old_set;
 	sigfillset(&mask_set);
-	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
+	//sigprocmask(SIG_SETMASK, &mask_set, &old_set);
 	cout << "smash: caught ctrl-C" << endl;
 	kill(cur_pid, SIGKILL);
 	cout << "smash: process " << cur_pid << " was killed" <<endl;
-	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
+	//sigprocmask(SIG_SETMASK, &mask_set, &old_set);
 
 }
 

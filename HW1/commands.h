@@ -32,7 +32,7 @@ class Job
 	bool stopped;
 	bool is_bg;
 
-	Job(char command[], int id, double time, bool is_bg);
+	Job(char command[], int id, double time, bool is_bg, bool stopped);
 	void update_serial(int new_serial);
 };
 
@@ -41,7 +41,7 @@ class Job
 int ExeComp(char* lineSize);
 int BgCmd(char* lineSize, list<Job> *jobs);
 int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString);
-void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs);
+void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_bg);
 
 
 

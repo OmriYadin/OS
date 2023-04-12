@@ -9,18 +9,18 @@
 //**************************************************************************************
 
 extern int cur_pid;
-
+#define END 2;
 char history[MAX_LINE_SIZE] = "0";
 
 int Job::cur_serial = 0;
 
-Job::Job(char command[], int id, double time, bool is_bg){
+Job::Job(char command[], int id, double time, bool is_bg, bool stopped){
 	cur_serial++;
 	this->serial = cur_serial;
 	strcpy(this->command, command);
 	this->process_id = id;
 	this->process_time = time;
-	this->stopped = false;
+	this->stopped = stopped;
 	this->is_bg = is_bg;
 }
 
@@ -34,9 +34,20 @@ void Job::update_serial(int new_serial){
 void list_update(list<Job> *jobs){
 	list<Job>::iterator iter;
 	int last_serial = 0;
-	for(iter = jobs->end(); iter != jobs->begin(); iter--){
-		if(waitpid((pid_t)(iter->process_id), NULL, WNOHANG)){
+
+	for(iter = jobs->begin(); iter != jobs->end(); iter++){
+		int status;
+		int pid_res = waitpid((pid_t)(iter->process_id), &status, WNOHANG);
+		if (pid_res == -1){
+			perror("smash error: waitpid failed");
+			return;
+		}
+		if(WIFEXITED(status)){
 			jobs->erase(iter);
+			if (jobs->empty()){
+				return;
+			}
+			iter--;
 		}
 		else{
 			if(iter->serial > last_serial){
@@ -120,8 +131,8 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
  		list<Job>::iterator iter;
  		for (iter = jobs->begin(); iter != jobs->end(); iter++){
  			double job_time = difftime(time(NULL), iter->process_time);
- 			cout << "[" << iter->process_id << "] " << iter->command << " : "
- 					<< iter->process_id << job_time << "secs";
+ 			cout << "[" << iter->serial << "] " << iter->command << " : "
+ 					<< iter->process_id << " " << job_time << " secs";
  			if (iter->stopped){
  				cout << " (stopped)";
  			}
@@ -177,17 +188,34 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 			else{
 				list<Job>::iterator iter;
 				int process = 0;
-				for(iter = jobs->end(); iter != jobs->begin(); iter--){
+				for(iter = jobs->begin(); iter != jobs->end(); iter++){
 					if(iter->serial == job){
 						process = iter->process_id;
 						iter->is_bg = false;
+						break;
 					}
 				}
 				if (process == 0){
 					cout << "smash error: fg: job-id " << job << " does not exist" << endl;
 				}
 				else {
-					waitpid(process, NULL, 0);
+					cout << process << endl;
+					kill(process, SIGCONT);
+					int status;
+					cur_pid = process;
+               		signal(SIGINT, ctrl_c_fg_handler);
+               		signal(SIGTSTP, ctrl_z_fg_handler);
+					int waitpid_res = waitpid(process, &status, WUNTRACED);
+					if (waitpid_res == -1){
+						perror("smash error: waitpid failed");
+					}
+					cout << "..." << endl;
+					cur_pid = getpid();
+               		signal(SIGINT, ctrl_c_smash_handler);
+               		signal(SIGTSTP, ctrl_z_smash_handler);
+               		if (WIFSTOPPED(status)){
+               			iter->process_time = time(NULL);
+               		}
 				}
 			}
 		}
@@ -251,28 +279,32 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	else if (!strcmp(cmd, "quit"))
 	{
    		if (num_arg == 0){
-   			exit(0);
+   			return 2;
    		}
    		else{
    			if (!strcmp(args[1], "kill")){
    				list<Job>::iterator iter;
    				for (iter = jobs->begin(); iter != jobs->end(); iter++){
-   					cout << "[" << iter->serial << "] " << iter->command << "-Sending SIGTERM...";
+   					cout << "[" << iter->serial << "] " << iter->command << " - Sending SIGTERM...";
    					kill(iter->process_id, SIGTERM);
    					sleep(5);
-   					if (waitpid((pid_t)(iter->process_id), NULL, WNOHANG)){
+   					int waitpid_res = waitpid((pid_t)(iter->process_id), NULL, WNOHANG);
+   					if (waitpid_res == iter->process_id){
    						cout << " Done." << endl;
    					}
-   					else{
+   					else if (waitpid_res == 0){
    						cout << " (5 sec passed) Sending SIGKILL...";
    						kill(iter->process_id, SIGKILL);
    						cout << " Done." << endl;
    					}
+   					else{
+   						perror("smash error: waitpid failed");
+   					}
    				}
-   				exit(0);
+   				return END;
    			}
    			else {
-   				exit(0);
+   				return END;
    			}
    		}
 	} 
@@ -300,7 +332,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	else // external command
 	{
 		list_update(jobs);
- 		ExeExternal(args, cmdString, jobs);
+ 		ExeExternal(args, cmdString, jobs, false);
 	 	return 0;
 	}
 	if (illegal_cmd == true)
@@ -316,7 +348,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 // Parameters: external command arguments, external command string
 // Returns: void
 //**************************************************************************************
-void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs)
+void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_bg)
 {
 	int pID;
     switch(pID = fork())
@@ -333,20 +365,28 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs)
                		exit(0);
 
 			default:
-					int status;
-					cur_pid = pID;
-               		signal(SIGINT, ctrl_c_fg_handler);
-               		signal(SIGTSTP, ctrl_z_fg_handler);
-					waitpid(pID, &status, WUNTRACED);
-					cur_pid = getpid();
-               		signal(SIGINT, ctrl_c_smash_handler);
-               		signal(SIGTSTP, ctrl_z_smash_handler);
-					if (WIFSTOPPED(status)){
-						jobs->push_back(
-								Job(cmdString, pID, time(NULL), false));
-						jobs->end()->stopped = true;
+					if (!is_bg){
+						int status;
+						cur_pid = pID;
+						signal(SIGINT, ctrl_c_fg_handler);
+						signal(SIGTSTP, ctrl_z_fg_handler);
+						int waitpid_res = waitpid(pID, &status, WUNTRACED | WCONTINUED);
+						if (waitpid_res == -1){
+							perror("smash error: waitpid failed");
+						}
+						cur_pid = getpid();
+						signal(SIGINT, ctrl_c_smash_handler);
+						signal(SIGTSTP, ctrl_z_smash_handler);
+						if (WIFSTOPPED(status)){
+							jobs->push_back(
+									Job(cmdString, pID, time(NULL), false, true));
+						}
 					}
-					
+					else{
+               			jobs->push_back(
+               				Job(cmdString, pID, time(NULL), true, false));
+               		}
+
 	}
 }
 //**************************************************************************************
@@ -379,13 +419,26 @@ int BgCmd(char* lineSize, list<Job> *jobs)
 {
 
 	list_update(jobs);
-	char* Command;
+	char* cmd;
 	char delimiters[] = " \t\n";
 	char *args[MAX_ARG];
 	if (lineSize[strlen(lineSize)-2] == '&')
 	{
-
+		char cmdString[MAX_LINE_SIZE];
+		strcpy(cmdString, lineSize);
+		cmdString[strlen(cmdString)-1] = '\0';
 		lineSize[strlen(lineSize)-2] = '\0';
+		int i = 0, num_arg = 0;
+		bool illegal_cmd = false; // illegal command
+	    cmd = strtok(lineSize, delimiters);
+		if (cmd == NULL)
+			return 0;
+	   	args[0] = cmd;
+		for (i=1; i<MAX_ARG; i++)
+		{
+			args[i] = strtok(NULL, delimiters);
+		}
+		ExeExternal(args, cmdString, jobs, true);
 
 		return 0;
 	}
