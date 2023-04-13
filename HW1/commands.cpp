@@ -265,7 +265,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
   			}
   			else {
 				list<Job>::iterator iter = jobs->begin();
-				while ((iter != jobs->end()) || (iter->serial != job)){
+				while ((iter != jobs->end()) && (iter->serial != job)){
 					iter++;
 				}
 
@@ -293,17 +293,18 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	else if (!strcmp(cmd, "quit"))
 	{
    		if (num_arg == 0){
-   			return 2;
+   			return END;
    		}
    		else{
    			if (!strcmp(args[1], "kill")){
    				list<Job>::iterator iter;
+   				int status;
    				for (iter = jobs->begin(); iter != jobs->end(); iter++){
    					cout << "[" << iter->serial << "] " << iter->command << " - Sending SIGTERM...";
    					kill(iter->process_id, SIGTERM);
    					sleep(5);
-   					int waitpid_res = waitpid((pid_t)(iter->process_id), NULL, WNOHANG);
-   					if (waitpid_res == iter->process_id){
+   					int waitpid_res = waitpid((pid_t)(iter->process_id), &status, WNOHANG);
+   					if ((WIFSIGNALED(status) || WIFEXITED(status)) && waitpid_res != -1){
    						cout << " Done." << endl;
    					}
    					else if (waitpid_res == 0){

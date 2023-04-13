@@ -27,7 +27,7 @@ void ctrl_c_handler(int sig_num){
 	if(cur_pid != smash_pid){
 		//int pid = getpid();
 		kill(cur_pid, SIGKILL);
-		cout << "smash: process " << cur_pid << " was killed" <<endl;
+		cout << "smash: process " << cur_pid << " was killed" << endl;
 	}
 	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
 
