@@ -6,18 +6,12 @@
 /* Name: handler_cntlc
    Synopsis: handle the Control-C */
 #include "signals.h"
+#define ERROR -1
+
 extern int cur_pid;
 extern int smash_pid;
 
-/*void ctrl_c_smash_handler(int sig_num){
-	sigset_t mask_set;
-	sigset_t old_set;
-	sigfillset(&mask_set);
-	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
-	cout << "smash: caught ctrl-C" << endl;
-	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
-}
-*/
+
 void ctrl_c_handler(int sig_num){
 	sigset_t mask_set;
 	sigset_t old_set;
@@ -25,8 +19,11 @@ void ctrl_c_handler(int sig_num){
 	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
 	cout << "smash: caught ctrl-C" << endl;
 	if(cur_pid != smash_pid){
-		//int pid = getpid();
-		kill(cur_pid, SIGKILL);
+		int c_kill = kill(cur_pid, SIGKILL);
+		if(c_kill == ERROR){
+			perror("smash error: kill failed");
+			return;
+		}
 		cout << "smash: process " << cur_pid << " was killed" << endl;
 	}
 	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
@@ -40,7 +37,11 @@ void ctrl_z_handler(int sig_num){
 	sigprocmask(SIG_SETMASK, &mask_set, &old_set);
 	cout << "smash: caught ctrl-Z" << endl;
 	if(cur_pid != smash_pid){
-		kill(cur_pid, SIGSTOP);
+		int z_kill = kill(cur_pid, SIGSTOP);
+		if(z_kill == ERROR){
+			perror("smash error: kill failed");
+			return;
+		}
 		cout << "smash: process " << cur_pid << " was stopped" <<endl;
 	}
 	sigprocmask(SIG_SETMASK, &mask_set, &old_set);

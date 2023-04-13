@@ -39,7 +39,7 @@ class Job
 
 
 
-int ExeComp(char* lineSize);
+//int ExeComp(char* lineSize);
 int BgCmd(char* lineSize, list<Job> *jobs);
 int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString);
 void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_bg);
