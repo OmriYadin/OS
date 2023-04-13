@@ -9,6 +9,7 @@
 //**************************************************************************************
 
 extern int cur_pid;
+extern int smash_pid;
 #define END 2;
 char history[MAX_LINE_SIZE] = "0";
 
@@ -39,7 +40,16 @@ void list_update(list<Job> *jobs){
 		int status;
 		int pid_res = waitpid((pid_t)(iter->process_id), &status, WNOHANG);
 		if (pid_res == -1){
-			perror("smash error: waitpid failed");
+			if(errno == ECHILD){
+				jobs->erase(iter);
+				if (jobs->empty()){
+					return;
+				}
+				iter--;
+			}
+			else{
+				perror("smash error: waitpid failed");
+			}
 			return;
 		}
 		if(WIFEXITED(status)){
@@ -199,21 +209,26 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 					cout << "smash error: fg: job-id " << job << " does not exist" << endl;
 				}
 				else {
-					cout << process << endl;
-					kill(process, SIGCONT);
-					int status;
+					//cout << process << endl;
 					cur_pid = process;
-               		signal(SIGINT, ctrl_c_fg_handler);
-               		signal(SIGTSTP, ctrl_z_fg_handler);
+					if(iter->stopped){
+						if(kill(process, SIGCONT) == -1)
+							perror("smash error: kill failed");
+
+					}
+					int status;
+               		//signal(SIGINT, ctrl_c_fg_handler);
+               		//signal(SIGTSTP, ctrl_z_fg_handler);
 					int waitpid_res = waitpid(process, &status, WUNTRACED);
 					if (waitpid_res == -1){
 						perror("smash error: waitpid failed");
 					}
-					cout << "..." << endl;
+					//cout << "..." << endl;
 					cur_pid = getpid();
-               		signal(SIGINT, ctrl_c_smash_handler);
-               		signal(SIGTSTP, ctrl_z_smash_handler);
+               		//signal(SIGINT, ctrl_c_smash_handler);
+               		//signal(SIGTSTP, ctrl_z_smash_handler);
                		if (WIFSTOPPED(status)){
+               			iter->stopped = true;
                			iter->process_time = time(NULL);
                		}
 				}
@@ -250,7 +265,6 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
   			}
   			else {
 				list<Job>::iterator iter = jobs->begin();
-				int process = 0;
 				while ((iter != jobs->end()) || (iter->serial != job)){
 					iter++;
 				}
@@ -368,15 +382,11 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_
 					if (!is_bg){
 						int status;
 						cur_pid = pID;
-						signal(SIGINT, ctrl_c_fg_handler);
-						signal(SIGTSTP, ctrl_z_fg_handler);
 						int waitpid_res = waitpid(pID, &status, WUNTRACED | WCONTINUED);
 						if (waitpid_res == -1){
 							perror("smash error: waitpid failed");
 						}
 						cur_pid = getpid();
-						signal(SIGINT, ctrl_c_smash_handler);
-						signal(SIGTSTP, ctrl_z_smash_handler);
 						if (WIFSTOPPED(status)){
 							jobs->push_back(
 									Job(cmdString, pID, time(NULL), false, true));

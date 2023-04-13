@@ -11,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <math.h>
+#include <errno.h>
 #include <list>
 #include <sys/types.h>
 #include <sys/wait.h>

@@ -7,14 +7,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <signal.h>
 using namespace std;
 
-void ctrl_c_smash_handler(int sig_num);
-void ctrl_c_fg_handler(int sig_num);
+//void ctrl_c_smash_handler(int sig_num);
+void ctrl_c_handler(int sig_num);
 
-void ctrl_z_smash_handler(int sig_num);
-void ctrl_z_fg_handler(int sig_num);
+//void ctrl_z_smash_handler(int sig_num);
+void ctrl_z_handler(int sig_num);
 
 #endif
 

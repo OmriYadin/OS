@@ -15,6 +15,7 @@ main file. This file contains the main function of smash
 #define END 2
 
 int cur_pid = getpid();
+int smash_pid;
 char* L_Fg_Cmd;
 std::list <Job> jobs; //This represents the list of jobs. Please change to a preferred type (e.g array of char*)
 char lineSize[MAX_LINE_SIZE]; 
@@ -30,11 +31,11 @@ int main(int argc, char *argv[])
 	//signal declarations
 	//NOTE: the signal handlers and the function/s that sets the handler should be found in siganls.c
 	 /* add your code here */
-    signal(SIGINT, ctrl_c_smash_handler);
-    signal(SIGTSTP, ctrl_z_smash_handler);
+    signal(SIGINT, ctrl_c_handler);
+    signal(SIGTSTP, ctrl_z_handler);
 	/************************************/
 	// Init globals 
-
+    smash_pid = getpid();
 
 	
 	L_Fg_Cmd =(char*)malloc(sizeof(char)*(MAX_LINE_SIZE+1));
