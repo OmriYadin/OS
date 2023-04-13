@@ -462,9 +462,6 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_
     {
 		// Add your code here (execute a complicated command)
 					
-		/* 
-		your code
-		*//*
 	} 
 	return ERROR;
 }*/
@@ -487,8 +484,7 @@ int BgCmd(char* lineSize, list<Job> *jobs)
 		strcpy(cmdString, lineSize);
 		cmdString[strlen(cmdString)-1] = '\0';
 		lineSize[strlen(lineSize)-2] = '\0';
-		int i = 0, num_arg = 0;
-		bool illegal_cmd = false; // illegal command
+		int i = 0;
 	    cmd = strtok(lineSize, delimiters);
 		if (cmd == NULL)
 			return 0;
