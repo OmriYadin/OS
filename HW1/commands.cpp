@@ -39,7 +39,10 @@ void Job::update_serial(int new_serial){
 void list_update(list<Job> *jobs){
 	list<Job>::iterator iter;
 	int last_serial = 0;
-
+	if (jobs->empty()){
+		jobs->begin()->update_serial(0);
+		return;
+	}
 	for(iter = jobs->begin(); iter != jobs->end(); iter++){
 		int status;
 		int pid_res = waitpid((pid_t)(iter->process_id), &status, WNOHANG);
@@ -47,6 +50,7 @@ void list_update(list<Job> *jobs){
 			if(errno == ECHILD){
 				jobs->erase(iter);
 				if (jobs->empty()){
+					iter->update_serial(0);
 					return;
 				}
 				iter--;
@@ -54,11 +58,12 @@ void list_update(list<Job> *jobs){
 			else{
 				perror("smash error: waitpid failed");
 			}
-			return;
+			continue;
 		}
 		if(WIFEXITED(status)){
 			jobs->erase(iter);
 			if (jobs->empty()){
+				iter->update_serial(0);
 				return;
 			}
 			iter--;
@@ -101,38 +106,48 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	if (!strcmp(cmd, "cd") ) 
 	{
 		if (num_arg > 1){
-			cout << "smash error: cd: too many arguments" << endl;;
+			cerr << "smash error: cd: too many arguments" << endl;;
 		}
 		else if (!strcmp(args[1], "..")){
-			strcpy(history, getcwd(pwd, MAX_LINE_SIZE));
+			if (!getcwd(pwd, MAX_LINE_SIZE)){
+				perror("smash error: getcwd failed");
+				return FAILURE;
+			}
 			int res = chdir("..");
 			if (res == ERROR){
 				perror("smash error: chdir failed");
 				return FAILURE;
 			}
+			strcpy(history, pwd);
 		}
 		else if (strcmp(args[1], "-")){
-			strcpy(history, getcwd(pwd, MAX_LINE_SIZE));
+			if (!getcwd(pwd, MAX_LINE_SIZE)){
+				perror("smash error: getcwd failed");
+				return FAILURE;
+			}
 			int res = chdir(args[1]);
 			if (res == ERROR){
 				perror("smash error: chdir failed");
 				return FAILURE;
 			}
+			strcpy(history, pwd);
 
 		}
 		else{
 			if (!strcmp(history, "0")){
-				cout << "smash error: cd: OLDPWD not set" << endl;
+				cerr << "smash error: cd: OLDPWD not set" << endl;
 			}
 			else{
-				char history_tmp[MAX_LINE_SIZE];
-				strcpy(history_tmp, getcwd(pwd, MAX_LINE_SIZE));
+				if (!getcwd(pwd, MAX_LINE_SIZE)){
+					perror("smash error: getcwd failed");
+					return FAILURE;
+				}
 				int res = chdir(history);
 				if (res == ERROR){
 					perror("smash error: chdir failed");
 					return FAILURE;
 				}
-				strcpy(history, history_tmp);
+				strcpy(history, pwd);
 			}
 		}
 	} 
@@ -140,12 +155,11 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else if (!strcmp(cmd, "pwd")) 
 	{
-		char* cwd = getcwd(pwd, MAX_LINE_SIZE);
-		if (cwd == NULL){
-			perror("smash error: getxwd failed");
+		if (getcwd(pwd, MAX_LINE_SIZE) == NULL){
+			perror("smash error: getcwd failed");
 			return FAILURE;
 		}
-		cout << cwd << endl;
+		cout << pwd << endl;
 	}
 	
 	/*************************************************
@@ -183,8 +197,8 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	else if (!strcmp(cmd, "kill"))
 	{
 		bool is_found = false;
-		if (num_arg > 2){
-			cout << "smash error: kill: invalid arguments" << endl;
+		if (num_arg != 2){
+			cerr << "smash error: kill: invalid arguments" << endl;
 		}
  		list<Job>::iterator iter_kill;
  		for (iter_kill = jobs->begin(); iter_kill != jobs->end(); iter_kill++){
@@ -193,7 +207,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
  				int kill_check = kill(iter_kill->process_id, abs(atoi(args[1])));
  				if (kill_check == ERROR){
  					if (errno == EINVAL || errno == ESRCH){
- 						cout << "smash error: kill: invalid arguments" << endl;
+ 						cerr << "smash error: kill: invalid arguments" << endl;
  						return FAILURE;
  					}
  					perror("smash error: kill failed");
@@ -206,7 +220,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
  			}
  		}
  		if (is_found == false){
- 			cout << "smash error: kill: job-id " << args[2] << " does not exist" << endl;
+ 			cerr << "smash error: kill: job-id " << args[2] << " does not exist" << endl;
  		}
 	}
 	/*************************************************/
@@ -214,21 +228,36 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	{
 		if (num_arg == 0){
 			if (jobs->empty()){
-				cout << "smash error: fg: jobs list is empty" << endl;
+				cerr << "smash error: fg: jobs list is empty" << endl;
 			}
 			else {
-				int process = jobs->end()->process_id;
-				jobs->end()->is_bg = false;
-				int fg_pid = waitpid(process, NULL, 0);
-				if(fg_pid == ERROR){
+				int process = jobs->rbegin()->process_id;
+				jobs->rbegin()->is_bg = false;
+				if(jobs->rbegin()->stopped){
+					if(kill(process, SIGCONT) == ERROR){
+						perror("smash error: kill failed");
+						return FAILURE;
+					}
+				}
+				int status;
+				cur_pid = process;
+				cout << jobs->rbegin()->command << " : " << process << endl;
+				int waitpid_res = waitpid(process, &status, WUNTRACED);
+				if (waitpid_res == ERROR){
 					perror("smash error: waitpid failed");
+					return FAILURE;
+				}
+				cur_pid = getpid();
+				if (WIFSTOPPED(status)){
+					jobs->rbegin()->stopped = true;
+					jobs->rbegin()->process_time = time(NULL);
 				}
 			}
 		}
 		else if (num_arg == 1){
 			int job = atoi(args[1]);
 			if(job <= 0){
-				cout << "smash error: fg: invalid arguments" << endl;
+				cerr << "smash error: fg: invalid arguments" << endl;
 			}
 			else{
 				list<Job>::iterator iter;
@@ -241,7 +270,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 					}
 				}
 				if (process == 0){
-					cout << "smash error: fg: job-id " << job << " does not exist" << endl;
+					cerr << "smash error: fg: job-id " << job << " does not exist" << endl;
 				}
 				else {
 					cur_pid = process;
@@ -252,6 +281,8 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 						}
 					}
 					int status;
+					cout << iter->command << " : "
+					 					<< iter->process_id << endl;
 					int waitpid_res = waitpid(process, &status, WUNTRACED);
 					if (waitpid_res == ERROR){
 						perror("smash error: waitpid failed");
@@ -266,7 +297,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 			}
 		}
 		else {
-			cout << "smash error: fg: invalid arguments" << endl;
+			cerr << "smash error: fg: invalid arguments" << endl;
 		}
 
 	} 
@@ -275,28 +306,33 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	{
   		if (num_arg == 0){
   			list<Job>::iterator iter = jobs->end();
-  			while ((iter != jobs->begin()) || (iter->stopped != true)){
-  				iter--;
-  			}
-  			if (iter->stopped == true){
-  				cout << iter->command << endl;
-  				iter->stopped = false;
-  				iter->is_bg = true;
-  				int bg_kill = kill(iter->process_id, SIGCONT);
-  				if (bg_kill == ERROR){
-  					perror("smash error: kill failed");
-  					return FAILURE;
-  				}
+  			if (!(jobs->empty())){
+				while ((iter != jobs->begin()) || (iter->stopped != true)){
+					iter--;
+				}
+				if (iter->stopped == true){
+					cout << iter->command << " : " << iter->process_id << endl;
+					iter->stopped = false;
+					iter->is_bg = true;
+					int bg_kill = kill(iter->process_id, SIGCONT);
+					if (bg_kill == ERROR){
+						perror("smash error: kill failed");
+						return FAILURE;
+					}
+				}
+	  			else {
+	  				cerr << "smash error: bg: there are no stopped jobs to resume" << endl;
+	  			}
   			}
   			else {
-  				cout << "smash error: bg: there are no stopped jobs to resume" << endl;
+  				cerr << "smash error: bg: there are no stopped jobs to resume" << endl;
   			}
   		}
 
   		else if (num_arg == 1){
   			int job = atoi(args[1]);
   			if (job <= 0){
-  				cout << "smash error: bg: invalid arguments" << endl;
+  				cerr << "smash error: bg: invalid arguments" << endl;
   			}
   			else {
 				list<Job>::iterator iter = jobs->begin();
@@ -305,15 +341,15 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 				}
 
 				if (iter->serial != job){
-					cout << "smash error: bg: job-id " << job << " does not exist" << endl;
+					cerr << "smash error: bg: job-id " << job << " does not exist" << endl;
 				}
 				else {
 					if (iter->stopped != true){
-						cout << "smash error: bg: job-id " << job <<
+						cerr << "smash error: bg: job-id " << job <<
 								" is already running in the background" << endl;
 					}
 					else {
-		  				cout << iter->command << endl;
+		  				cout << iter->command << " : " << iter->process_id << endl;
 		  				iter->stopped = false;
 		  				iter->is_bg = true;
 		  				int bg_kill = kill(iter->process_id, SIGCONT);
@@ -326,7 +362,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
   			}
   		}
   		else {
-  			cout << "smash error: bg: invalid arguments" << endl;
+  			cerr << "smash error: bg: invalid arguments" << endl;
   		}
 	}
 	/*************************************************/
@@ -340,27 +376,32 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
    				list<Job>::iterator iter;
    				int status;
    				for (iter = jobs->begin(); iter != jobs->end(); iter++){
-   					cout << "[" << iter->serial << "] " << iter->command << " - Sending SIGTERM...";
+   					cout << "[" << iter->serial << "] " << iter->command << " - Sending SIGTERM..." << flush;
    					int quit_kill = kill(iter->process_id, SIGTERM);
    					if(quit_kill == ERROR){
    						perror("smash error: kill failed");
    						return FAILURE;
    					}
-   					sleep(5);
-   					int waitpid_res = waitpid((pid_t)(iter->process_id), &status, WNOHANG);
-   					if ((WIFSIGNALED(status) || WIFEXITED(status)) && waitpid_res != ERROR){
-   						cout << " Done." << endl;
+   					
+   					int waitpid_res;
+   					for(int i = 0; i < 5; i++){
+   						sleep(1);
+   						waitpid_res = waitpid((pid_t)(iter->process_id), &status, WNOHANG);
+						if (WIFSIGNALED(status) && waitpid_res > 0){
+							cout << " Done." << endl;
+							break;
+						}
+						else if (waitpid_res == ERROR){
+	   						perror("smash error: waitpid failed");
+						}
    					}
-   					else if (waitpid_res == 0){
+   					if (waitpid_res == 0){
    						cout << " (5 sec passed) Sending SIGKILL...";
    						int second_kill = kill(iter->process_id, SIGKILL);
    						if (second_kill == ERROR){
    							perror("smash error: kill failed");
    						}
    						cout << " Done." << endl;
-   					}
-   					else{
-   						perror("smash error: waitpid failed");
    					}
    				}
    				return END;
@@ -373,7 +414,7 @@ int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString)
 	/*************************************************/
 	else if (!strcmp(cmd, "diff")){
 		if (num_arg != 2){
-			cout << "smash error: diff: invalid arguments" << endl;
+			cerr << "smash error: diff: invalid arguments" << endl;
 		}
 
 		ifstream first(args[1]);
@@ -425,7 +466,7 @@ void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_
                		setpgrp();
                		execvp(args[0], args);
                		perror("smash error: exec failed");
-               		exit(0);
+               		exit(1);
 
 			default:
 					if (!is_bg){
