@@ -11,10 +11,8 @@
 #include <signal.h>
 using namespace std;
 
-//void ctrl_c_smash_handler(int sig_num);
 void ctrl_c_handler(int sig_num);
 
-//void ctrl_z_smash_handler(int sig_num);
 void ctrl_z_handler(int sig_num);
 
 #endif
