@@ -3,6 +3,7 @@ CC = g++
 CFLAGS = -g -Wall -std=c++11 -Werror -pedantic-errors -DNDEBUG
 CCLINK = $(CC)
 OBJS = smash.o commands.o signals.o
+TARGET = smash
 RM = rm -f
 
 # Creating the  executable

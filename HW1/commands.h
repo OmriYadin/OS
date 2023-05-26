@@ -19,8 +19,9 @@
 #define MAX_LINE_SIZE 80
 #define MAX_ARG 20
 using namespace std;
-//typedef enum { FALSE , TRUE } bool;
 
+
+// class for each process on the jobs list
 class Job
 {
 	static int cur_serial;
@@ -39,7 +40,6 @@ class Job
 
 
 
-//int ExeComp(char* lineSize);
 int BgCmd(char* lineSize, list<Job> *jobs);
 int ExeCmd(list<Job> *jobs, char* lineSize, char* cmdString);
 void ExeExternal(char *args[MAX_ARG], char* cmdString, list<Job> *jobs, bool is_bg);
