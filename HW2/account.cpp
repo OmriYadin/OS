@@ -32,40 +32,40 @@ void Account::open_locks(){
 	this->rd_lock.up();
 }
 
-int Account::rd_balance(){
-	int tmp_balance;
+
+void rd_entry(){
 	this->rd_lock.down();
 	this->rd_count += 1;
 	if((this->rd_count) == 1){
 		this->wr_lock.down();
 	}
 	this->rd_lock.up();
-	tmp_balance = this->balance;
+}
+
+
+void rd_leave(){
 	this->rd_lock.down();
 	this->rd_count -= 1;
 	if((this->rd_count) == 0){
 		this->wr_lock.up();
 	}
 	this->rd_lock.up();
+}
+
+int Account::rd_balance(){
+	int tmp_balance;
+	rd_entry();
+	tmp_balance = this->balance;
+	rd_leave();
 	return tmp_balance;
 }
 
 
 void Account::print_acc(){
-	this->rd_lock.down();
-	this->rd_count += 1;
-	if((this->rd_count) == 1){
-		this->wr_lock.down();
-	}
-	this->rd_lock.up();
+	rd_entry();
 	cout << "Account " << this->id << ": - " << this->balance << 
 			" $, Account Password - " << this->password << endl;
-	this->rd_lock.down();
-	this->rd_count -= 1;
-	if((this->rd_count) == 0){
-		this->wr_lock.up();
-	}
-	this->rd_lock.up();
+	rd_leave();
 }
 
 

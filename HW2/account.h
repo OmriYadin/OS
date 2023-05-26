@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <iostream>
-#include "sem.h"
+#include "rd_wr.h"
 
 using namespace std;
 
@@ -21,6 +21,8 @@ class Account {
 	bool operator<(const Account& account);
 	bool operator==(const Account& account);
 	void open_locks();
+	void rd_entry();
+	void rd_leave();
 	int rd_balance();
 	void print_acc();
 	int upd_balance(int op, int amount);
