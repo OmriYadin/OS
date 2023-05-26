@@ -11,8 +11,8 @@ Account::Account(int id, int balance, int password){
 	this->balance = balance;
 	this->password = password;
 	this->rd_count = 0;
-	this->rd_lock = Sem(1);
-	this->wr_lock = Sem(1);
+	this->rd_lock = Sem(0);
+	this->wr_lock = Sem(0);
 }
 
 bool operator<(const Account& account){
@@ -25,6 +25,11 @@ bool operator==(const Account& account){
 
 bool pass_auth(int password){
 	return ((this->password) == password);
+}
+
+void Account::open_locks(){
+	this->wr_lock.up();
+	this->rd_lock.up();
 }
 
 int Account::rd_balance(){

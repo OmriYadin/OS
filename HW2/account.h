@@ -20,6 +20,7 @@ class Account {
 	bool pass_auth(int password);
 	bool operator<(const Account& account);
 	bool operator==(const Account& account);
+	void open_locks();
 	int rd_balance();
 	void print_acc();
 	int upd_balance(int op, int amount);

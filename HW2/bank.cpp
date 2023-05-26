@@ -18,10 +18,15 @@ using namespace std;
 
 fstream log;
 pthread_mutex_t log_lock;
+pthread_mutex_t enter_lock;
 
 int main(int argc, char *argv[]){
 	log.open("log.txt", ios_base::out);
 	if(pthread_mutex_init(&log_lock, NULL)){
+		perror("Bank error: pthread_mutex_init failed");
+		exit(1);
+	}
+	if(pthread_mutex_init(&enter_lock, NULL)){
 		perror("Bank error: pthread_mutex_init failed");
 		exit(1);
 	}
@@ -67,6 +72,7 @@ void operations(fstream file, int atm_id){
 				int pass = atoi(strtok(NULL, " /t"));
 				int bal = atoi(strtok(NULL, " /t"));
 				Account tmp_account = Account(id, bal, pass);
+				pthread_mutex_lock(&enter_lock);
 				if(accounts->count(tmp_account)){
 					pthread_mutex_lock(&log_lock);
 					log << "Error " << atm_id <<
@@ -75,12 +81,15 @@ void operations(fstream file, int atm_id){
 				}
 				else {
 					insert(tmp_account);
+					((Account)accounts->find(tmp_account))->open_locks();
 					pthread_mutex_lock(&log_lock);
 					log << atm_id << ": New account id is " << id <<
 							" with password " << pass << " and initial balance "
 							<< bal << "\n";
 					pthread_mutex_unlock(&log_lock);
 				}
+				pthread_mutex_unlock(&enter_lock);
+				break;
 				
 			case "D":
 				
