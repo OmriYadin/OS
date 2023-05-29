@@ -10,17 +10,23 @@ Account::Account(int id, int balance, int password){
 	this->id = id;
 	this->balance = balance;
 	this->password = password;
-	this->rd_count = 0;
-	this->rd_lock = Sem(0);
-	this->wr_lock = Sem(0);
+	this->rd_wr = Rd_wr();
+	this->rd_wr.lock_del();
+	sleep(1);
 }
 
 bool operator<(const Account& account){
 	return (this->id < account->id);
 }
 
+
 bool operator==(const Account& account){
-	return (this->id == account->id)
+	return (this->id == account->id);
+}
+
+
+bool operator==(const int id){
+	return (this->id == id);
 }
 
 bool pass_auth(int password){
@@ -28,49 +34,25 @@ bool pass_auth(int password){
 }
 
 void Account::open_locks(){
-	this->wr_lock.up();
-	this->rd_lock.up();
-}
-
-
-void rd_entry(){
-	this->rd_lock.down();
-	this->rd_count += 1;
-	if((this->rd_count) == 1){
-		this->wr_lock.down();
-	}
-	this->rd_lock.up();
-}
-
-
-void rd_leave(){
-	this->rd_lock.down();
-	this->rd_count -= 1;
-	if((this->rd_count) == 0){
-		this->wr_lock.up();
-	}
-	this->rd_lock.up();
+	this->rd_wr.unlock_del();
 }
 
 int Account::rd_balance(){
 	int tmp_balance;
-	rd_entry();
 	tmp_balance = this->balance;
-	rd_leave();
 	return tmp_balance;
 }
 
 
 void Account::print_acc(){
-	rd_entry();
+	rd_wr.rd_entry();
 	cout << "Account " << this->id << ": - " << this->balance << 
 			" $, Account Password - " << this->password << endl;
-	rd_leave();
+	rd_wr.rd_exit();
 }
 
 
 int Account::upd_balance(int op, int amount){
-	this->wr_lock.down();
 	int upd_amount = -1;
 	switch(op){
 		case DEPOSIT:
@@ -90,6 +72,6 @@ int Account::upd_balance(int op, int amount){
 			this->balance -= upd_amount;
 			break;
 	}
-	this->wr_lock.up();
+	sleep(1);
 	return upd_amount;
 }

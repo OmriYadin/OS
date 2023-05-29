@@ -4,17 +4,19 @@
 #include <stdio.h>
 #include <pthread.h>
 
-class rd_wr {
+class Rd_wr {
 	pthread_mutex_t rd_lock;
 	pthread_mutex_t wr_lock;
 	pthread_mutex_t del_lock;
 	int readers;
 	
 	public:
-	rd_wr();
-	~rd_wr();
-	rd_entry();
-	rd_exit();
-	wr_entry();
-	wr_exit();
+	Rd_wr();
+	~Rd_wr();
+	void rd_entry();
+	void rd_exit();
+	void wr_entry();
+	void wr_exit();
+	void lock_del();
+	void unlock_del();
 };

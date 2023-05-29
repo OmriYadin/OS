@@ -2,7 +2,7 @@
 
 
 
-rd_wr::rd_wr(){
+Rd_wr::Rd_wr(){
 	this->readers = 0;
 	if(pthread_mutex_init(&rd_lock, NULL)){
 		perror("Bank error: pthread_mutex_init failed");
@@ -19,7 +19,7 @@ rd_wr::rd_wr(){
 }
 
 
-rd_wr::~rd_wr(){
+Rd_wr::~Rd_wr(){
 	if(pthread_mutex_lock(&del_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
@@ -48,7 +48,7 @@ rd_wr::~rd_wr(){
 }
 
 
-rd_wr::rd_entry(){
+void Rd_wr::rd_entry(){
 	if(pthread_mutex_lock(&del_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
@@ -75,7 +75,7 @@ rd_wr::rd_entry(){
 }
 
 
-rd_wr::rd_exit(){
+void Rd_wr::rd_exit(){
 	if(pthread_mutex_lock(&rd_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
@@ -94,7 +94,7 @@ rd_wr::rd_exit(){
 }
 
 
-rd_wr::wr_entry(){
+void Rd_wr::wr_entry(){
 	if(pthread_mutex_lock(&del_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
@@ -110,8 +110,25 @@ rd_wr::wr_entry(){
 }
 
 
-rd_wr::wr_exit(){
+void Rd_wr::wr_exit(){
 	if(pthread_mutex_unlock(&wr_lock)){
+		perror("Bank error: pthread_mutex_unlock failed");
+		exit(1);
+	}
+}
+
+
+
+void Rd_wr::lock_del(){
+	if(pthread_mutex_lock(&del_lock)){
+		perror("Bank error: pthread_mutex_lock failed");
+		exit(1);
+	}
+}
+
+
+void Rd_wr::unlock_del(){
+	if(pthread_mutex_unlock(&del_lock)){
 		perror("Bank error: pthread_mutex_unlock failed");
 		exit(1);
 	}
