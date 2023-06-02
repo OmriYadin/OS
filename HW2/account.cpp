@@ -12,24 +12,25 @@ Account::Account(int id, int balance, int password){
 	this->password = password;
 	this->rd_wr = Rd_wr();
 	this->rd_wr.lock_del();
-	sleep(1);
 }
 
-bool operator<(const Account& account){
+bool Account::operator<(const Account& account){
 	return (this->id < account->id);
 }
 
+Account::~Account(){}
 
-bool operator==(const Account& account){
+
+bool Account::operator==(const Account& account){
 	return (this->id == account->id);
 }
 
 
-bool operator==(const int id){
+bool Account::operator==(const int id){
 	return (this->id == id);
 }
 
-bool pass_auth(int password){
+bool Account::pass_auth(int password){
 	return ((this->password) == password);
 }
 
@@ -72,6 +73,5 @@ int Account::upd_balance(int op, int amount){
 			this->balance -= upd_amount;
 			break;
 	}
-	sleep(1);
 	return upd_amount;
 }

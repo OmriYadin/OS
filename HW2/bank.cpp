@@ -82,6 +82,7 @@ void operations(fstream file, int atm_id, set<Account>* accounts){
 					log << "Error " << atm_id <<
 							": Your transaction failed - account with the same id exists\n";
 					pthread_mutex_unlock(&log_lock);
+					sleep(1);
 				}
 				else {
 					accounts->insert(tmp_account);
@@ -91,6 +92,7 @@ void operations(fstream file, int atm_id, set<Account>* accounts){
 							" with password " << pass << " and initial balance "
 							<< bal << "\n";
 					pthread_mutex_unlock(&log_lock);///////////////////////
+					sleep(1);
 					((Account*)accounts->find(tmp_account))->open_locks();
 				}
 				break;
@@ -107,29 +109,31 @@ void operations(fstream file, int atm_id, set<Account>* accounts){
 						bank_rd_wr.rd_exit();
 						int new_amount = (Account*)iter->upd_balance(DEPOSIT, amount);
 						pthread_mutex_lock(&log_lock); //////////////////////////////
-						(Account*)iter->rd_wr.wr_exit();
 						log << atm_id << ": Account " << id << " new balance is " << 
 								new_amount << " after " << amount << " $ was deposited\n";
 						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter->rd_wr.wr_exit();
 					}
 					else {
 						bank_rd_wr.rd_exit();
-						sleep(1);
 						pthread_mutex_lock(&log_lock); //////////////////////////////
-						(Account*)iter->rd_wr.rd_exit();
 						log << "Error " << atm_id <<": Your transaction failed - password for account id "
 								<< id << " is incorrect\n";
 						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter->rd_wr.rd_exit();
 					}
 				}
 				else {
-					sleep(1);
 					pthread_mutex_lock(&log_lock); ///////////////////////////
 					bank_rd_wr.rd_exit();
 					log << "Error " << atm_id << ": Your transaction failed - account id " << id <<
 							" does not exist\n";
 					pthread_mutex_unlock(&log_lock);///////////////////////
+					sleep(1);
 				}
+				break;
 				
 			case "W":
 				int amount = atoi(strtok(NULL, " /t"));
@@ -144,39 +148,41 @@ void operations(fstream file, int atm_id, set<Account>* accounts){
 							bank_rd_wr.rd_exit();
 							int new_amount = (Account*)iter->upd_balance(DEPOSIT, amount);
 							pthread_mutex_lock(&log_lock); //////////////////////////////
-							(Account*)iter->rd_wr.wr_exit();
 							log << atm_id << ": Account " << id << " new balance is " << 
 									new_amount << " after " << amount << " $ was withdrew\n";
 							pthread_mutex_unlock(&log_lock);///////////////////////
+							sleep(1);
+							(Account*)iter->rd_wr.wr_exit();
 						}
 						else{
 							bank_rd_wr.rd_exit();
-							sleep(1);
 							pthread_mutex_lock(&log_lock); //////////////////////////////
-							(Account*)iter->rd_wr.rd_exit();
 							log << "Error " << atm_id <<": Your transaction failed - account id "
 									<< id << " balance is lower than " << amount << "\n";
 							pthread_mutex_unlock(&log_lock);///////////////////////
+							sleep(1);
+							(Account*)iter->rd_wr.rd_exit();
 						}
 					}
 					else {
 						bank_rd_wr.rd_exit();
-						sleep(1);
 						pthread_mutex_lock(&log_lock); //////////////////////////////
-						(Account*)iter->rd_wr.rd_exit();
 						log << "Error " << atm_id <<": Your transaction failed - password for account id "
 								<< id << " is incorrect\n";
 						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter->rd_wr.rd_exit();
 					}
 				}
 				else {
-					sleep(1);
 					pthread_mutex_lock(&log_lock); ///////////////////////////
 					bank_rd_wr.rd_exit();
 					log << "Error " << atm_id << ": Your transaction failed - account id " << id <<
 							" does not exist\n";
 					pthread_mutex_unlock(&log_lock);///////////////////////
+					sleep(1);
 				}
+				break;
 			
 			case "B":
 				bank_rd_wr.rd_entry();
@@ -186,38 +192,133 @@ void operations(fstream file, int atm_id, set<Account>* accounts){
 					if((Account*)iter->pass_auth(pass)){
 						bank_rd_wr.rd_exit();
 						int bal = ((Account*)iter)->rd_balance();
-						sleep(1);
-						pthread_mutex_lock(&log_lock); //////////////////////////////
-						(Account*)iter->rd_wr.rd_exit();
+						pthread_mutex_lock(&log_lock); /////////////////////////////
 						log << atm_id << ": Account " << id << " balance is " << bal << "\n";
 						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter->rd_wr.rd_exit();
 					} 
 					else {
 						bank_rd_wr.rd_exit();
-						sleep(1);
 						pthread_mutex_lock(&log_lock); //////////////////////////////
-						(Account*)iter->rd_wr.rd_exit();
 						log << "Error " << atm_id <<": Your transaction failed - password for account id "
 								<< id << " is incorrect\n";
 						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter->rd_wr.rd_exit();
 					}
 				}
 				else {
-					sleep(1);
 					pthread_mutex_lock(&log_lock); ///////////////////////////
 					bank_rd_wr.rd_exit();
 					log << "Error " << atm_id << ": Your transaction failed - account id " << id <<
 							" does not exist\n";
 					pthread_mutex_unlock(&log_lock);///////////////////////
+					sleep(1);
 				}
-			
+				break;
 				
 			case "Q":
+				bank_rd_wr.wr_entry();
+				set<Account>::iterator iter = accounts->find(id);
+				if(iter != accounts->end()){
+					((Account*)iter)->rd_wr.rd_entry();
+					if((Account*)iter->pass_auth(pass)){
+						int bal = (Account*)iter->rd_balance();
+						((Account*)iter)->rd_wr.rd_exit();
+						accounts->erase(iter);
+						pthread_mutex_lock(&log_lock); //////////////////////////////
+						log << atm_id <<": Account " << id << " is now closed. Balance was " <<
+								<< bal << "\n"
+						pthread_mutex_unlock(&log_lock);///////////////////////
+						bank_rd_wr.wr_exit();
+						sleep(1);
+					}
+					else {
+						bank_rd_wr.wr_exit();
+						pthread_mutex_lock(&log_lock); //////////////////////////////
+						log << "Error " << atm_id <<": Your transaction failed - password for account id "
+								<< id << " is incorrect\n";
+						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter->rd_wr.rd_exit();
+					}
+				}
+				else {
+					pthread_mutex_lock(&log_lock); ///////////////////////////
+					bank_rd_wr.wr_exit();
+					log << "Error " << atm_id << ": Your transaction failed - account id " << id <<
+							" does not exist\n";
+					pthread_mutex_unlock(&log_lock);///////////////////////
+					sleep(1);
+				}
+				break;
 				
 				
 			case "T":
-			
+				int tg_id = atoi(strtok(NULL, " /t"));
+				int amount = atoi(strtok(NULL, " /t"));
+				bank_rd_wr.rd_entry();
+				set<Account>::iterator iter_1 = accounts->find(id);
+				if(iter_1 != accounts.end()){
+					(Account*)iter_1->wr_entry();
+					if((Account*)iter_1->auth_pass(pass)){
+						set<Account>::iterator iter_2 = accounts->find(tg_id);
+						if(iter_2 != accounts.end()){
+							(Account*)iter_2->wr_entry();
+							bank_rd_wr.rd_exit();
+							int bal = (Account*)iter_1->upd_balance(WITHDRAW, amount);
+							if(bal == -1){
+								pthread_mutex_lock(&log_lock); //////////////////////////////
+								log << "Error " << atm_id <<": Your transaction failed - account id "
+										<< id << " balance is lower than " << amount << "\n";
+								pthread_mutex_unlock(&log_lock);///////////////////////
+								sleep(1);
+								(Account*)iter_1->rd_wr.wr_exit();
+								(Account*)iter_2->rd_wr.wr_exit();
+							}
+							else {
+								int tg_bal = (Account*)iter_2->upd_balance(DEPOSIT, amount);
+								pthread_mutex_lock(&log_lock); //////////////////////////////
+								log << atm_id << ": Transfer " << amount << " from account " << id <<
+										" to account " << tg_id << " new account balance is " << bal <<
+										" new target account balance is " << tg_bal << "\n";
+								pthread_mutex_unlock(&log_lock);///////////////////////
+								sleep(1);
+								(Account*)iter_1->rd_wr.wr_exit();
+								(Account*)iter_2->rd_wr.wr_exit();
+							}
+						}
+						else {
+							pthread_mutex_lock(&log_lock); ///////////////////////////
+							bank_rd_wr.rd_exit();
+							log << "Error " << atm_id << ": Your transaction failed - account id " << tg_id <<
+									" does not exist\n";
+							pthread_mutex_unlock(&log_lock);///////////////////////
+							sleep(1);
+							(Account*)iter_1->rd_wr.wr_exit();
+						}
+					}
+					else {
+						bank_rd_wr.rd_exit();
+						pthread_mutex_lock(&log_lock); //////////////////////////////
+						log << "Error " << atm_id <<": Your transaction failed - password for account id "
+								<< id << " is incorrect\n";
+						pthread_mutex_unlock(&log_lock);///////////////////////
+						sleep(1);
+						(Account*)iter_1->rd_wr.rd_exit();
+					}
+				}
+				else {
+					pthread_mutex_lock(&log_lock); ///////////////////////////
+					bank_rd_wr.rd_exit();
+					log << "Error " << atm_id << ": Your transaction failed - account id " << tg_id <<
+							" does not exist\n";
+					pthread_mutex_unlock(&log_lock);///////////////////////
+					sleep(1);
+				}
+				break;
+				
 		}
-		
 	}
 }
