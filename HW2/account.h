@@ -21,6 +21,8 @@ class Account {
 	bool operator==(const Account& account);
 	bool operator==(const int id);
 	void open_locks();
+	int get_id();
+	int get_pass();
 	int rd_balance();
 	void print_acc();
 	int upd_balance(int op, int amount);

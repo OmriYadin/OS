@@ -75,3 +75,12 @@ int Account::upd_balance(int op, int amount){
 	}
 	return upd_amount;
 }
+
+int Account::get_id(){
+	return this->id;
+}
+
+int Account::get_pass(){
+	return this->password;
+}
+
