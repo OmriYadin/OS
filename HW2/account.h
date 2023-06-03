@@ -19,8 +19,9 @@ class Account {
 	Account(int id, int balance, int password);
 	~Account();
 	bool pass_auth(int password);
-	bool operator<(const Account& account);
-	bool operator==(const Account& account);
+	bool operator<(const Account& account) const;
+	bool operator==(const Account& account) const;
+	Account& operator=(const Account& account);
 	void open_locks();
 	int get_id();
 	int get_pass();

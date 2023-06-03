@@ -85,27 +85,27 @@ int main(int argc, char *argv[]){
 		log.close();
 		exit(1);
 	}
-	
+		
 	for(int i = 0; i < argc-1; i++){
-		if(!(pthread_create(&(atm_threads[i]), NULL,
-				operations, (void*)(&args[i])))){
+		if(pthread_create(&(atm_threads[i]), NULL,
+				operations, (void*)(&args[i]))){
 			perror("Bank error: pthread_create failed");
 			exit(1);
 		}
 	}
-	
-	if(!(pthread_create(&screen, NULL, print_screen, NULL))){
+		
+	if(pthread_create(&screen, NULL, print_screen, NULL)){
 		perror("Bank error: pthread_create failed");
 		exit(1);
 	}
 	
-	if(!(pthread_create(&fees, NULL, bank_fees, NULL))){
+	if(pthread_create(&fees, NULL, bank_fees, NULL)){
 		perror("Bank error: pthread_create failed");
 		exit(1);
 	}
 	
 	for(int i = 0; i < argc-1; i++){
-		if(!(pthread_join(atm_threads[i], NULL))){
+		if(pthread_join(atm_threads[i], NULL)){
 			perror("Bank error: pthread_join failed");
 			exit(1);
 		}
@@ -113,12 +113,12 @@ int main(int argc, char *argv[]){
 	
 	is_finished = true;
 	
-	if(!(pthread_join(fees, NULL))){
+	if(pthread_join(fees, NULL)){
 		perror("Bank error: pthread_join failed");
 		exit(1);
 	}
 	
-	if(!(pthread_join(screen, NULL))){
+	if(pthread_join(screen, NULL)){
 		perror("Bank error: pthread_join failed");
 		exit(1);
 	}
@@ -139,7 +139,7 @@ int main(int argc, char *argv[]){
 
 void lock(pthread_mutex_t* lock){
 	if(pthread_mutex_lock(lock)){
-		perror("Bank error: lock failed");
+		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
 	}
 }
@@ -147,7 +147,7 @@ void lock(pthread_mutex_t* lock){
 
 void unlock(pthread_mutex_t* lock){
 	if(pthread_mutex_unlock(lock)){
-		perror("Bank error: unlock failed");
+		perror("Bank error: pthread_mutex_unlock failed");
 		exit(1);
 	}
 }
@@ -162,37 +162,41 @@ void* operations(void* args){
 	set<Account>::iterator iter;
 	set<Account>::iterator iter_1;
 	set<Account>::iterator iter_2;
-	Account tmp_account(0,0,0);
 	char line[MAX_LEN];
-	while(!file->eof()){
+	while(file->getline(line, MAX_LEN, '\n')){
 		sleep(0.1);
-		file->getline(line, MAX_LEN, '\n');
 		char* cur_token;
 		cur_token = strtok(line, " \t");
 		int id = atoi(strtok(NULL, " \t"));
 		int pass = atoi(strtok(NULL, " \t"));
+		log << cur_token[0] << endl;
+		log << id << endl;
+		log << pass << endl;
+		Account tmp_account = Account(id,0 ,pass);
+
 		
 		switch(cur_token[0]){
 			
 			case 'O':
 				bal = atoi(strtok(NULL, " \t"));
-				tmp_account = Account(id, bal, pass);
+				tmp_account.upd_balance(DEPOSIT, bal);
+				log << bal << endl;
 				bank_rd_wr.wr_entry();
 				if(accounts.count(tmp_account)){
 					lock(&log_lock);///////////////////////////
 					bank_rd_wr.wr_exit();
 					log << "Error " << atm_id <<
-							": Your transaction failed - account with the same id exists\n";
+							": Your transaction failed - account with the same id exists" << endl;
 					unlock(&log_lock);
 					sleep(1);
 				}
 				else {
-					iter = accounts.insert(tmp_account);
+					iter = accounts.insert(tmp_account).first;
 					lock(&log_lock);///////////////////////////
 					bank_rd_wr.wr_exit();
 					log << atm_id << ": New account id is " << id <<
 							" with password " << pass << " and initial balance "
-							<< bal << "\n";
+							<< bal << endl;
 					unlock(&log_lock);///////////////////////
 					sleep(1);
 					((Account)*iter).open_locks();
@@ -201,8 +205,8 @@ void* operations(void* args){
 				
 			case 'D':
 				amount = atoi(strtok(NULL, " \t"));
+				log << bal << endl;
 				bank_rd_wr.rd_entry();
-				tmp_account = Account(id, 0, 0);
 				iter = accounts.find(tmp_account);
 				if(iter != accounts.end()){
 					((Account)*iter).rd_wr.rd_entry();
@@ -241,7 +245,6 @@ void* operations(void* args){
 			case 'W':
 				amount = atoi(strtok(NULL, " \t"));
 				bank_rd_wr.rd_entry();
-				tmp_account = Account(id, 0, 0);
 				iter = accounts.find(tmp_account);
 				if(iter != accounts.end()){
 					((Account)*iter).rd_wr.rd_entry();
@@ -290,7 +293,6 @@ void* operations(void* args){
 			
 			case 'B':
 				bank_rd_wr.rd_entry();
-				tmp_account = Account(id, 0, 0);
 				iter = accounts.find(tmp_account);
 				if(iter != accounts.end()){
 					((Account)*iter).rd_wr.rd_entry();
@@ -325,7 +327,6 @@ void* operations(void* args){
 				
 			case 'Q':
 				bank_rd_wr.wr_entry();
-				tmp_account = Account(id, 0, 0);
 				iter = accounts.find(tmp_account);
 				if(iter != accounts.end()){
 					((Account)*iter).rd_wr.rd_entry();
@@ -365,13 +366,12 @@ void* operations(void* args){
 				tg_id = atoi(strtok(NULL, " \t"));
 				amount = atoi(strtok(NULL, " \t"));
 				bank_rd_wr.rd_entry();
-				tmp_account = Account(id, 0, 0);
 				iter_1 = accounts.find(tmp_account);
 				if(iter_1 != accounts.end()){
 					((Account)*iter_1).rd_wr.wr_entry();
 					if(((Account)*iter_1).pass_auth(pass)){
-						tmp_account = Account(tg_id, 0, 0);
-						iter_2 = accounts.find(tmp_account);
+						Account tmp_account_2 = Account(tg_id, 0, 0);
+						iter_2 = accounts.find(tmp_account_2);
 						if(iter_2 != accounts.end()){
 							((Account)*iter_2).rd_wr.wr_entry();
 							bank_rd_wr.rd_exit();
@@ -426,7 +426,6 @@ void* operations(void* args){
 					sleep(1);
 				}
 				break;
-
 		}
 	}
 	pthread_exit(NULL);
@@ -443,6 +442,7 @@ void* bank_fees(void*){
 		int cur_fee = (rand()%5) + 1;
 		for(; iter != accounts.end(); iter++){
 			((Account)*iter).rd_wr.wr_entry();
+			log << cur_fee << endl;
 			cur_amount = ((Account)*iter).upd_balance(FEE, cur_fee);
 			lock(&amount_lock);/////////////////////////////////////////
 			bank_amount += cur_amount;
