@@ -10,67 +10,50 @@ Account::Account(int id, int balance, int password){
 	this->id = id;
 	this->balance = balance;
 	this->password = password;
-	this->rd_count = 0;
-	this->rd_lock = Sem(0);
-	this->wr_lock = Sem(0);
+	this->rd_wr = Rd_wr();
+	this->rd_wr.lock_del();
 }
 
-bool operator<(const Account& account){
+bool Account::operator<(const Account& account){
 	return (this->id < account->id);
 }
 
-bool operator==(const Account& account){
-	return (this->id == account->id)
+Account::~Account(){}
+
+
+bool Account::operator==(const Account& account){
+	return (this->id == account->id);
 }
 
-bool pass_auth(int password){
+
+bool Account::operator==(const int id){
+	return (this->id == id);
+}
+
+bool Account::pass_auth(int password){
 	return ((this->password) == password);
 }
 
 void Account::open_locks(){
-	this->wr_lock.up();
-	this->rd_lock.up();
+	this->rd_wr.unlock_del();
 }
 
 int Account::rd_balance(){
 	int tmp_balance;
-	this->rd_lock.down();
-	this->rd_count += 1;
-	if((this->rd_count) == 1){
-		this->wr_lock.down();
-	}
-	this->rd_lock.up();
 	tmp_balance = this->balance;
-	this->rd_lock.down();
-	this->rd_count -= 1;
-	if((this->rd_count) == 0){
-		this->wr_lock.up();
-	}
-	this->rd_lock.up();
 	return tmp_balance;
 }
 
 
 void Account::print_acc(){
-	this->rd_lock.down();
-	this->rd_count += 1;
-	if((this->rd_count) == 1){
-		this->wr_lock.down();
-	}
-	this->rd_lock.up();
+	rd_wr.rd_entry();
 	cout << "Account " << this->id << ": - " << this->balance << 
 			" $, Account Password - " << this->password << endl;
-	this->rd_lock.down();
-	this->rd_count -= 1;
-	if((this->rd_count) == 0){
-		this->wr_lock.up();
-	}
-	this->rd_lock.up();
+	rd_wr.rd_exit();
 }
 
 
 int Account::upd_balance(int op, int amount){
-	this->wr_lock.down();
 	int upd_amount = -1;
 	switch(op){
 		case DEPOSIT:
@@ -90,6 +73,14 @@ int Account::upd_balance(int op, int amount){
 			this->balance -= upd_amount;
 			break;
 	}
-	this->wr_lock.up();
 	return upd_amount;
 }
+
+int Account::get_id(){
+	return this->id;
+}
+
+int Account::get_pass(){
+	return this->password;
+}
+

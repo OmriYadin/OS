@@ -11,6 +11,7 @@ class Sem {
 	
 	public:
 	Sem(int cnt);
+	~Sem();
 	void up();
 	void down();
 } ;
