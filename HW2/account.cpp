@@ -15,20 +15,16 @@ Account::Account(int id, int balance, int password){
 }
 
 bool Account::operator<(const Account& account){
-	return (this->id < account->id);
+	return (this->id < account.id);
 }
 
 Account::~Account(){}
 
 
 bool Account::operator==(const Account& account){
-	return (this->id == account->id);
+	return (this->id == account.id);
 }
 
-
-bool Account::operator==(const int id){
-	return (this->id == id);
-}
 
 bool Account::pass_auth(int password){
 	return ((this->password) == password);
