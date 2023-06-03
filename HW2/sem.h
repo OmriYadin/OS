@@ -3,6 +3,9 @@
 
 #include <stdio.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 
 class Sem {
 	pthread_mutex_t lock;

@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <stdlib.h>
+#include <unistd.h>
 #include "rd_wr.h"
 
 using namespace std;
@@ -27,3 +29,5 @@ class Account {
 	void print_acc();
 	int upd_balance(int op, int amount);
 };
+
+#endif

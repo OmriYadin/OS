@@ -2,6 +2,8 @@
 #define _RD_WR_H
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <pthread.h>
 
 class Rd_wr {
@@ -20,3 +22,6 @@ class Rd_wr {
 	void lock_del();
 	void unlock_del();
 };
+
+
+#endif
