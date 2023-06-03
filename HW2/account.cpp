@@ -14,38 +14,34 @@ Account::Account(int id, int balance, int password){
 	this->rd_wr.lock_del();
 }
 
-bool Account::operator<(const Account& account) const{
+bool Account::operator<(const Account& account){
 	return (this->id < account.id);
 }
 
 Account::~Account(){}
 
 
-bool Account::operator==(const Account& account) const{
+bool Account::operator==(const Account& account){
 	return (this->id == account.id);
 }
 
 
-bool Account::operator==(const int id) const{
-	return (this->id == id);
-}
-
-bool Account::pass_auth(int password) const{
+bool Account::pass_auth(int password){
 	return ((this->password) == password);
 }
 
-void Account::open_locks() const{
+void Account::open_locks(){
 	this->rd_wr.unlock_del();
 }
 
-int Account::rd_balance() const{
+int Account::rd_balance(){
 	int tmp_balance;
 	tmp_balance = this->balance;
 	return tmp_balance;
 }
 
 
-void Account::print_acc() const{
+void Account::print_acc(){
 	rd_wr.rd_entry();
 	cout << "Account " << this->id << ": - " << this->balance << 
 			" $, Account Password - " << this->password << endl;
@@ -53,7 +49,7 @@ void Account::print_acc() const{
 }
 
 
-int Account::upd_balance(int op, int amount) const{
+int Account::upd_balance(int op, int amount){
 	int upd_amount = -1;
 	switch(op){
 		case DEPOSIT:
@@ -76,11 +72,11 @@ int Account::upd_balance(int op, int amount) const{
 	return upd_amount;
 }
 
-int Account::get_id() const{
+int Account::get_id(){
 	return this->id;
 }
 
-int Account::get_pass() const{
+int Account::get_pass(){
 	return this->password;
 }
 
