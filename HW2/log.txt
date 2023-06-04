@@ -1,5 +1,0 @@
-O
-1
-1234
-100
-1: New account id is 1 with password 1234 and initial balance 100

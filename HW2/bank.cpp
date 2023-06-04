@@ -6,6 +6,7 @@
 #include "account.h"
 #include "rd_wr.h"
 #include <set>
+#include <map>
 #include <pthread.h>
 #include <fstream>
 
@@ -35,7 +36,7 @@ pthread_mutex_t amount_lock;
 pthread_mutex_t log_lock;
 fstream log;
 Rd_wr bank_rd_wr;
-set<Account> accounts;
+map<int, Account> accounts;
 bool is_finished;
 int bank_amount = 0;
 
@@ -159,9 +160,9 @@ void* operations(void* args){
 	int bal;
 	int amount;
 	int tg_id;
-	set<Account>::iterator iter;
-	set<Account>::iterator iter_1;
-	set<Account>::iterator iter_2;
+	map<int, Account>::iterator iter;
+	map<int, Account>::iterator iter_1;
+	map<int, Account>::iterator iter_2;
 	char line[MAX_LEN];
 	while(file->getline(line, MAX_LEN, '\n')){
 		sleep(0.1);
@@ -169,9 +170,9 @@ void* operations(void* args){
 		cur_token = strtok(line, " \t");
 		int id = atoi(strtok(NULL, " \t"));
 		int pass = atoi(strtok(NULL, " \t"));
-		log << cur_token[0] << endl;
-		log << id << endl;
-		log << pass << endl;
+		//log << cur_token[0] << endl;
+		//log << id << endl;
+		//log << pass << endl;
 		Account tmp_account = Account(id,0 ,pass);
 
 		
@@ -180,9 +181,9 @@ void* operations(void* args){
 			case 'O':
 				bal = atoi(strtok(NULL, " \t"));
 				tmp_account.upd_balance(DEPOSIT, bal);
-				log << bal << endl;
+				//log << bal << endl;
 				bank_rd_wr.wr_entry();
-				if(accounts.count(tmp_account)){
+				if(accounts.find(id) != accounts.end()){
 					lock(&log_lock);///////////////////////////
 					bank_rd_wr.wr_exit();
 					log << "Error " << atm_id <<
@@ -191,36 +192,37 @@ void* operations(void* args){
 					sleep(1);
 				}
 				else {
-					iter = accounts.insert(tmp_account).first;
-					lock(&log_lock);///////////////////////////
+					iter = accounts.insert({id, tmp_account}).first;
+					(iter->second).rd_wr.wr_entry();
 					bank_rd_wr.wr_exit();
+					lock(&log_lock);///////////////////////////
 					log << atm_id << ": New account id is " << id <<
 							" with password " << pass << " and initial balance "
 							<< bal << endl;
 					unlock(&log_lock);///////////////////////
 					sleep(1);
-					((Account)*iter).open_locks();
+					(iter->second).rd_wr.wr_exit();
 				}
 				break;
 				
 			case 'D':
 				amount = atoi(strtok(NULL, " \t"));
-				log << bal << endl;
 				bank_rd_wr.rd_entry();
-				iter = accounts.find(tmp_account);
+				iter = accounts.find(id);
 				if(iter != accounts.end()){
-					((Account)*iter).rd_wr.rd_entry();
-					if(((Account)*iter).pass_auth(pass)){
-						((Account)*iter).rd_wr.rd_exit();
-						((Account)*iter).rd_wr.wr_entry();
+					(iter->second).rd_wr.rd_entry();
+					//log << amount << endl;
+					if((iter->second).pass_auth(pass)){
+						(iter->second).rd_wr.rd_exit();
+						(iter->second).rd_wr.wr_entry();
 						bank_rd_wr.rd_exit();
-						int new_amount = ((Account)*iter).upd_balance(DEPOSIT, amount);
+						int new_amount = (iter->second).upd_balance(DEPOSIT, amount);
 						lock(&log_lock); //////////////////////////////
 						log << atm_id << ": Account " << id << " new balance is " << 
 								new_amount << " after " << amount << " $ was deposited\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter).rd_wr.wr_exit();
+						(iter->second).rd_wr.wr_exit();
 					}
 					else {
 						bank_rd_wr.rd_exit();
@@ -229,7 +231,7 @@ void* operations(void* args){
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter).rd_wr.rd_exit();
+						(iter->second).rd_wr.rd_exit();
 					}
 				}
 				else {
@@ -245,21 +247,21 @@ void* operations(void* args){
 			case 'W':
 				amount = atoi(strtok(NULL, " \t"));
 				bank_rd_wr.rd_entry();
-				iter = accounts.find(tmp_account);
+				iter = accounts.find(id);
 				if(iter != accounts.end()){
-					((Account)*iter).rd_wr.rd_entry();
-					if(((Account)*iter).pass_auth(pass)){
-						if(((Account)*iter).rd_balance() - amount > 0){
-							((Account)*iter).rd_wr.rd_exit();
-							((Account)*iter).rd_wr.wr_entry();
+					(iter->second).rd_wr.rd_entry();
+					if((iter->second).pass_auth(pass)){
+						if((iter->second).rd_balance() - amount > 0){
+							(iter->second).rd_wr.rd_exit();
+							(iter->second).rd_wr.wr_entry();
 							bank_rd_wr.rd_exit();
-							int new_amount = ((Account)*iter).upd_balance(DEPOSIT, amount);
+							int new_amount = (iter->second).upd_balance(WITHDRAW, amount);
 							lock(&log_lock); //////////////////////////////
 							log << atm_id << ": Account " << id << " new balance is " << 
 									new_amount << " after " << amount << " $ was withdrew\n";
 							unlock(&log_lock);///////////////////////
 							sleep(1);
-							((Account)*iter).rd_wr.wr_exit();
+							(iter->second).rd_wr.wr_exit();
 						}
 						else{
 							bank_rd_wr.rd_exit();
@@ -268,7 +270,7 @@ void* operations(void* args){
 									<< id << " balance is lower than " << amount << "\n";
 							unlock(&log_lock);///////////////////////
 							sleep(1);
-							((Account)*iter).rd_wr.rd_exit();
+							(iter->second).rd_wr.rd_exit();
 						}
 					}
 					else {
@@ -278,7 +280,7 @@ void* operations(void* args){
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter).rd_wr.rd_exit();
+						(iter->second).rd_wr.rd_exit();
 					}
 				}
 				else {
@@ -293,17 +295,17 @@ void* operations(void* args){
 			
 			case 'B':
 				bank_rd_wr.rd_entry();
-				iter = accounts.find(tmp_account);
+				iter = accounts.find(id);
 				if(iter != accounts.end()){
-					((Account)*iter).rd_wr.rd_entry();
-					if(((Account)*iter).pass_auth(pass)){
+					(iter->second).rd_wr.rd_entry();
+					if((iter->second).pass_auth(pass)){
 						bank_rd_wr.rd_exit();
-						bal = ((Account)*iter).rd_balance();
+						bal = (iter->second).rd_balance();
 						lock(&log_lock); /////////////////////////////
 						log << atm_id << ": Account " << id << " balance is " << bal << "\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter).rd_wr.rd_exit();
+						(iter->second).rd_wr.rd_exit();
 					} 
 					else {
 						bank_rd_wr.rd_exit();
@@ -312,7 +314,7 @@ void* operations(void* args){
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter).rd_wr.rd_exit();
+						(iter->second).rd_wr.rd_exit();
 					}
 				}
 				else {
@@ -327,12 +329,12 @@ void* operations(void* args){
 				
 			case 'Q':
 				bank_rd_wr.wr_entry();
-				iter = accounts.find(tmp_account);
+				iter = accounts.find(id);
 				if(iter != accounts.end()){
-					((Account)*iter).rd_wr.rd_entry();
-					if(((Account)*iter).pass_auth(pass)){
-						bal = ((Account)*iter).rd_balance();
-						((Account)*iter).rd_wr.rd_exit();
+					(iter->second).rd_wr.rd_entry();
+					if((iter->second).pass_auth(pass)){
+						bal = (iter->second).rd_balance();
+						(iter->second).rd_wr.rd_exit();
 						accounts.erase(iter);
 						lock(&log_lock); //////////////////////////////
 						log << atm_id <<": Account " << id << " is now closed. Balance was "
@@ -348,7 +350,7 @@ void* operations(void* args){
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter).rd_wr.rd_exit();
+						(iter->second).rd_wr.rd_exit();
 					}
 				}
 				else {
@@ -366,35 +368,35 @@ void* operations(void* args){
 				tg_id = atoi(strtok(NULL, " \t"));
 				amount = atoi(strtok(NULL, " \t"));
 				bank_rd_wr.rd_entry();
-				iter_1 = accounts.find(tmp_account);
+				iter_1 = accounts.find(id);
 				if(iter_1 != accounts.end()){
-					((Account)*iter_1).rd_wr.wr_entry();
-					if(((Account)*iter_1).pass_auth(pass)){
+					(iter_1->second).rd_wr.wr_entry();
+					if((iter_1->second).pass_auth(pass)){
 						Account tmp_account_2 = Account(tg_id, 0, 0);
-						iter_2 = accounts.find(tmp_account_2);
+						iter_2 = accounts.find(tg_id);
 						if(iter_2 != accounts.end()){
-							((Account)*iter_2).rd_wr.wr_entry();
+							(iter_2->second).rd_wr.wr_entry();
 							bank_rd_wr.rd_exit();
-							bal = ((Account)*iter_1).upd_balance(WITHDRAW, amount);
+							bal = (iter_1->second).upd_balance(WITHDRAW, amount);
 							if(bal == -1){
 								lock(&log_lock); //////////////////////////////
 								log << "Error " << atm_id <<": Your transaction failed - account id "
 										<< id << " balance is lower than " << amount << "\n";
 								unlock(&log_lock);///////////////////////
 								sleep(1);
-								((Account)*iter_1).rd_wr.wr_exit();
-								((Account)*iter_2).rd_wr.wr_exit();
+								(iter_1->second).rd_wr.wr_exit();
+								(iter_2->second).rd_wr.wr_exit();
 							}
 							else {
-								int tg_bal = ((Account)*iter_2).upd_balance(DEPOSIT, amount);
+								int tg_bal = (iter_2->second).upd_balance(DEPOSIT, amount);
 								lock(&log_lock); //////////////////////////////
 								log << atm_id << ": Transfer " << amount << " from account " << id <<
 										" to account " << tg_id << " new account balance is " << bal <<
 										" new target account balance is " << tg_bal << "\n";
 								unlock(&log_lock);///////////////////////
 								sleep(1);
-								((Account)*iter_1).rd_wr.wr_exit();
-								((Account)*iter_2).rd_wr.wr_exit();
+								(iter_1->second).rd_wr.wr_exit();
+								(iter_2->second).rd_wr.wr_exit();
 							}
 						}
 						else {
@@ -404,7 +406,7 @@ void* operations(void* args){
 									" does not exist\n";
 							unlock(&log_lock);///////////////////////
 							sleep(1);
-							((Account)*iter_1).rd_wr.wr_exit();
+							(iter_1->second).rd_wr.wr_exit();
 						}
 					}
 					else {
@@ -414,7 +416,7 @@ void* operations(void* args){
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						((Account)*iter_1).rd_wr.rd_exit();
+						(iter_1->second).rd_wr.rd_exit();
 					}
 				}
 				else {
@@ -433,7 +435,7 @@ void* operations(void* args){
 
 
 void* bank_fees(void*){
-	set<Account>::iterator iter;
+	map<int ,Account>::iterator iter;
 	int cur_amount;
 	while(!is_finished){
 		sleep(3);
@@ -441,17 +443,16 @@ void* bank_fees(void*){
 		iter = accounts.begin();
 		int cur_fee = (rand()%5) + 1;
 		for(; iter != accounts.end(); iter++){
-			((Account)*iter).rd_wr.wr_entry();
-			log << cur_fee << endl;
-			cur_amount = ((Account)*iter).upd_balance(FEE, cur_fee);
+			(iter->second).rd_wr.wr_entry();
+			cur_amount = (iter->second).upd_balance(FEE, cur_fee);
 			lock(&amount_lock);/////////////////////////////////////////
 			bank_amount += cur_amount;
 			unlock(&amount_lock);/////////////////////////////////////////
 			lock(&log_lock); ///////////////////////////////////////
 			log << "Bank: commissions of " << cur_fee << " % were charges, the bank gained "
-					<< cur_amount << " $ from account " << ((Account)*iter).get_id() << "\n";
+					<< cur_amount << " $ from account " << (iter->second).get_id() << "\n";
 			unlock(&log_lock); /////////////////////////////////////
-			((Account)*iter).rd_wr.wr_exit();
+			(iter->second).rd_wr.wr_exit();
 		}
 		bank_rd_wr.rd_exit();
 	}
@@ -460,7 +461,7 @@ void* bank_fees(void*){
 
 
 void* print_screen(void*){
-	set<Account>::iterator iter;
+	map<int, Account>::iterator iter = accounts.begin();
 	while(!is_finished){
 		sleep(0.5);
 		printf("\033[2J");
@@ -469,13 +470,13 @@ void* print_screen(void*){
 		bank_rd_wr.rd_entry();
 		iter = accounts.begin();
 		for(; iter != accounts.end(); iter++){
-			((Account)*iter).rd_wr.rd_entry();
-			int cur_bal = ((Account)*iter).rd_balance();
-			int cur_pass = ((Account)*iter).get_pass();
-			int cur_id = ((Account)*iter).get_id();
+			(iter->second).rd_wr.rd_entry();
+			int cur_bal = (iter->second).rd_balance();
+			int cur_pass = (iter->second).get_pass();
+			int cur_id = (iter->second).get_id();
 			cout << "Account " << cur_id << ": Balance - " << cur_bal <<
 					" $, Acccount Password - " << cur_pass << endl;
-			((Account)*iter).rd_wr.rd_exit();
+			(iter->second).rd_wr.rd_exit();
 		}
 		
 		lock(&amount_lock);/////////////////////////////////////////
@@ -483,5 +484,6 @@ void* print_screen(void*){
 		unlock(&amount_lock);/////////////////////////////////////////
 		bank_rd_wr.rd_exit();
 	}
+	
 	pthread_exit(NULL);
 }

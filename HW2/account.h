@@ -10,7 +10,7 @@
 using namespace std;
 
 class Account {
-	int balance;
+	mutable int balance;
 	int id;
 	int password;
 	
