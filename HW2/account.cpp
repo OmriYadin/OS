@@ -14,14 +14,20 @@ Account::Account(int id, int balance, int password){
 	this->rd_wr.lock_del();
 }
 
-bool Account::operator<(const Account& account){
+bool Account::operator<(const Account& account) const{
 	return (this->id < account.id);
 }
 
 Account::~Account(){}
 
+Account& Account::operator=(const Account& account){
+	this->id = account.id;
+	this->balance = account.balance;
+	this->password = account.password;
+	return *this;
+}
 
-bool Account::operator==(const Account& account){
+bool Account::operator==(const Account& account) const{
 	return (this->id == account.id);
 }
 
