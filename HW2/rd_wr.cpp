@@ -20,30 +20,26 @@ Rd_wr::Rd_wr(){
 }
 
 Rd_wr::~Rd_wr(){
-	if(pthread_mutex_lock(&del_lock)){
+	if(pthread_mutex_lock(&rd_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
 	}
-	if(pthread_mutex_lock(&wr_lock)){
-		perror("Bank error: pthread_mutex_lock failed");
+	
+	if(pthread_mutex_unlock(&rd_lock)){
+		perror("Bank error: pthread_mutex_unlock failed");
 		exit(1);
 	}
+	
 	if(pthread_mutex_destroy(&rd_lock)){
 		perror("Bank error: pthread_mutex_destroy failed");
 		exit(1);
 	}
-	if(pthread_mutex_unlock(&wr_lock)){
-		perror("Bank error: pthread_mutex_unlock failed");
-		exit(1);
-	}
+
 	if(pthread_mutex_destroy(&wr_lock)){
 		perror("Bank error: pthread_mutex_destroy failed");
 		exit(1);
 	}
-	if(pthread_mutex_unlock(&del_lock)){
-		perror("Bank error: pthread_mutex_unlock failed");
-		exit(1);
-	}
+
 	if(pthread_mutex_destroy(&del_lock)){
 		perror("Bank error: pthread_mutex_destroy failed");
 		exit(1);
@@ -87,7 +83,6 @@ void Rd_wr::rd_exit(){
 		exit(1);
 	}
 	readers -= 1;
-	//cout << "exit_readers: " << readers << endl;
 	if(readers == 0){
 		if(pthread_mutex_unlock(&wr_lock)){
 			perror("Bank error: pthread_mutex_unlock failed");

@@ -24,6 +24,8 @@ void* operations(void* args);
 void* print_screen(void*);
 void* bank_fees(void*);
 void lock(pthread_mutex_t* lock);
+void lock_init(pthread_mutex_t* lock);
+void lock_destroy(pthread_mutex_t* lock);
 void unlock(pthread_mutex_t* lock);
 
 struct thread_args {
@@ -34,6 +36,7 @@ struct thread_args {
 
 pthread_mutex_t amount_lock;
 pthread_mutex_t log_lock;
+pthread_mutex_t trans_lock;
 fstream log;
 Rd_wr bank_rd_wr;
 map<int, Account> accounts;
@@ -49,14 +52,9 @@ int main(int argc, char *argv[]){
 	pthread_t fees;
 	is_finished = false;
 	log.open("log.txt", ios_base::out);
-	if(pthread_mutex_init(&log_lock, NULL)){
-		perror("Bank error: pthread_mutex_init failed");
-		exit(1);
-	}
-	if(pthread_mutex_init(&amount_lock, NULL)){
-		perror("Bank error: pthread_mutex_init failed");
-		exit(1);
-	}
+	lock_init(&log_lock);
+	lock_init(&amount_lock);
+	lock_init(&trans_lock);
 	if(argc < 2){
 		cerr << "Bank error: illegal arguments" << endl;
 		return -1;
@@ -81,8 +79,8 @@ int main(int argc, char *argv[]){
 		delete[] files;
 		delete[] atm_threads;
 		delete[] args;
-		pthread_mutex_destroy(&log_lock); ///////////////
-		pthread_mutex_destroy(&amount_lock); ////////////
+		lock_destroy(&log_lock); ///////////////
+		lock_destroy(&amount_lock); ////////////
 		log.close();
 		exit(1);
 	}
@@ -130,13 +128,20 @@ int main(int argc, char *argv[]){
 	delete[] files;
 	delete[] atm_threads;
 	delete[] args;
-	pthread_mutex_destroy(&log_lock); ///////////////
-	pthread_mutex_destroy(&amount_lock); ////////////
+	lock_destroy(&log_lock); 
+	lock_destroy(&amount_lock); 
+	lock_destroy(&trans_lock);
 	log.close();
 	return 0;
 	
 }
 
+void lock_init(pthread_mutex_t* lock){
+	if(pthread_mutex_init(lock, NULL)){
+		perror("Bank error: pthread_mutex_init failed");
+		exit(1);
+	}
+}
 
 void lock(pthread_mutex_t* lock){
 	if(pthread_mutex_lock(lock)){
@@ -152,6 +157,14 @@ void unlock(pthread_mutex_t* lock){
 		exit(1);
 	}
 }
+
+void lock_destroy(pthread_mutex_t* lock){
+	if(pthread_mutex_destroy(lock)){
+		perror("Bank error: pthread_mutex_destroy failed");
+		exit(1);
+	}
+}
+
 
 
 void* operations(void* args){
@@ -181,7 +194,6 @@ void* operations(void* args){
 			case 'O':
 				bal = atoi(strtok(NULL, " \t"));
 				tmp_account.upd_balance(DEPOSIT, bal);
-				//log << bal << endl;
 				bank_rd_wr.wr_entry();
 				if(accounts.find(id) != accounts.end()){
 					lock(&log_lock);///////////////////////////
@@ -335,6 +347,8 @@ void* operations(void* args){
 					if((iter->second).pass_auth(pass)){
 						bal = (iter->second).rd_balance();
 						(iter->second).rd_wr.rd_exit();
+						(iter->second).rd_wr.wr_entry();
+						(iter->second).rd_wr.wr_exit();
 						accounts.erase(iter);
 						lock(&log_lock); //////////////////////////////
 						log << atm_id <<": Account " << id << " is now closed. Balance was "
@@ -344,8 +358,8 @@ void* operations(void* args){
 						sleep(1);
 					}
 					else {
-						bank_rd_wr.wr_exit();
 						lock(&log_lock); //////////////////////////////
+						bank_rd_wr.wr_exit();
 						log << "Error " << atm_id <<": Your transaction failed - password for account id "
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
@@ -370,12 +384,14 @@ void* operations(void* args){
 				bank_rd_wr.rd_entry();
 				iter_1 = accounts.find(id);
 				if(iter_1 != accounts.end()){
+					lock(&trans_lock);
 					(iter_1->second).rd_wr.wr_entry();
 					if((iter_1->second).pass_auth(pass)){
 						Account tmp_account_2 = Account(tg_id, 0, 0);
 						iter_2 = accounts.find(tg_id);
 						if(iter_2 != accounts.end()){
 							(iter_2->second).rd_wr.wr_entry();
+							unlock(&trans_lock);
 							bank_rd_wr.rd_exit();
 							bal = (iter_1->second).upd_balance(WITHDRAW, amount);
 							if(bal == -1){
@@ -401,6 +417,7 @@ void* operations(void* args){
 						}
 						else {
 							lock(&log_lock); ///////////////////////////
+							unlock(&trans_lock);
 							bank_rd_wr.rd_exit();
 							log << "Error " << atm_id << ": Your transaction failed - account id " << tg_id <<
 									" does not exist\n";
@@ -410,13 +427,14 @@ void* operations(void* args){
 						}
 					}
 					else {
-						bank_rd_wr.rd_exit();
 						lock(&log_lock); //////////////////////////////
+						unlock(&trans_lock);
+						bank_rd_wr.rd_exit();
 						log << "Error " << atm_id <<": Your transaction failed - password for account id "
 								<< id << " is incorrect\n";
 						unlock(&log_lock);///////////////////////
 						sleep(1);
-						(iter_1->second).rd_wr.rd_exit();
+						(iter_1->second).rd_wr.wr_exit();
 					}
 				}
 				else {
@@ -441,6 +459,9 @@ void* bank_fees(void*){
 		sleep(3);
 		bank_rd_wr.rd_entry();
 		iter = accounts.begin();
+		if(accounts.empty()){
+			continue;
+		}
 		int cur_fee = (rand()%5) + 1;
 		for(; iter != accounts.end(); iter++){
 			(iter->second).rd_wr.wr_entry();
@@ -469,6 +490,9 @@ void* print_screen(void*){
 		cout << "Current Bank Status" << endl;
 		bank_rd_wr.rd_entry();
 		iter = accounts.begin();
+		if(accounts.empty()){
+			continue;
+		}
 		for(; iter != accounts.end(); iter++){
 			(iter->second).rd_wr.rd_entry();
 			int cur_bal = (iter->second).rd_balance();
