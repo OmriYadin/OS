@@ -11,7 +11,7 @@ Account::Account(int id, int balance, int password){
 	this->balance = balance;
 	this->password = password;
 	this->rd_wr = Rd_wr();
-	this->rd_wr.lock_del();
+	//this->rd_wr.lock_del();
 }
 
 bool Account::operator<(const Account& account) const{

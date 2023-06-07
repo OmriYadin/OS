@@ -1,5 +1,6 @@
 #include "rd_wr.h"
 
+using namespace std;
 
 
 Rd_wr::Rd_wr(){
@@ -17,7 +18,6 @@ Rd_wr::Rd_wr(){
 		exit(1);
 	}
 }
-
 
 Rd_wr::~Rd_wr(){
 	if(pthread_mutex_lock(&del_lock)){
@@ -53,7 +53,6 @@ Rd_wr::~Rd_wr(){
 	
 }
 
-
 void Rd_wr::rd_entry(){
 	if(pthread_mutex_lock(&del_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
@@ -63,7 +62,8 @@ void Rd_wr::rd_entry(){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
 	}
-	readers += 1;
+	this->readers += 1;
+	//cout << "entry_readers: " << readers << endl;
 	if(readers == 1){
 		if(pthread_mutex_lock(&wr_lock)){
 			perror("Bank error: pthread_mutex_lock failed");
@@ -87,6 +87,7 @@ void Rd_wr::rd_exit(){
 		exit(1);
 	}
 	readers -= 1;
+	//cout << "exit_readers: " << readers << endl;
 	if(readers == 0){
 		if(pthread_mutex_unlock(&wr_lock)){
 			perror("Bank error: pthread_mutex_unlock failed");
@@ -109,6 +110,7 @@ void Rd_wr::wr_entry(){
 		perror("Bank error: pthread_mutex_lock failed");
 		exit(1);
 	}
+	//cout << "entry_write" << endl;
 	if(pthread_mutex_unlock(&del_lock)){
 		perror("Bank error: pthread_mutex_unlock failed");
 		exit(1);
