@@ -422,7 +422,7 @@ void* operations(void* args){
 				else {
 					lock(&log_lock); ///////////////////////////
 					bank_rd_wr.rd_exit();
-					log << "Error " << atm_id << ": Your transaction failed - account id " << tg_id <<
+					log << "Error " << atm_id << ": Your transaction failed - account id " << id <<
 							" does not exist\n";
 					unlock(&log_lock);///////////////////////
 					sleep(1);
