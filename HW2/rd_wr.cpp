@@ -2,7 +2,11 @@
 
 using namespace std;
 
+// readers writers as we learned in class
+// we also added delete lock to prevent starvations and 
+// to prevent errors when we delete accounts
 
+// readers writers constructor
 Rd_wr::Rd_wr(){
 	this->readers = 0;
 	if(pthread_mutex_init(&rd_lock, NULL)){
@@ -19,6 +23,7 @@ Rd_wr::Rd_wr(){
 	}
 }
 
+// readers writers destructor
 Rd_wr::~Rd_wr(){
 	if(pthread_mutex_lock(&rd_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
@@ -49,6 +54,8 @@ Rd_wr::~Rd_wr(){
 	
 }
 
+
+// readers writers read entry
 void Rd_wr::rd_entry(){
 	if(pthread_mutex_lock(&del_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
@@ -59,7 +66,6 @@ void Rd_wr::rd_entry(){
 		exit(1);
 	}
 	this->readers += 1;
-	//cout << "entry_readers: " << readers << endl;
 	if(readers == 1){
 		if(pthread_mutex_lock(&wr_lock)){
 			perror("Bank error: pthread_mutex_lock failed");
@@ -77,6 +83,7 @@ void Rd_wr::rd_entry(){
 }
 
 
+// readers writers read exit
 void Rd_wr::rd_exit(){
 	if(pthread_mutex_lock(&rd_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
@@ -96,6 +103,7 @@ void Rd_wr::rd_exit(){
 }
 
 
+// readers writers write entry
 void Rd_wr::wr_entry(){
 	if(pthread_mutex_lock(&del_lock)){
 		perror("Bank error: pthread_mutex_lock failed");
@@ -113,6 +121,7 @@ void Rd_wr::wr_entry(){
 }
 
 
+// readers writers write exit
 void Rd_wr::wr_exit(){
 	if(pthread_mutex_unlock(&wr_lock)){
 		perror("Bank error: pthread_mutex_unlock failed");
@@ -120,19 +129,3 @@ void Rd_wr::wr_exit(){
 	}
 }
 
-
-
-void Rd_wr::lock_del(){
-	if(pthread_mutex_lock(&del_lock)){
-		perror("Bank error: pthread_mutex_lock failed");
-		exit(1);
-	}
-}
-
-
-void Rd_wr::unlock_del(){
-	if(pthread_mutex_unlock(&del_lock)){
-		perror("Bank error: pthread_mutex_unlock failed");
-		exit(1);
-	}
-}

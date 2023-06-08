@@ -20,8 +20,6 @@ class Rd_wr {
 	void rd_exit();
 	void wr_entry();
 	void wr_exit();
-	void lock_del();
-	void unlock_del();
 };
 
 

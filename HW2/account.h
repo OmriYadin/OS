@@ -10,7 +10,7 @@
 using namespace std;
 
 class Account {
-	mutable int balance;
+	int balance;
 	int id;
 	int password;
 	
@@ -22,7 +22,6 @@ class Account {
 	bool operator<(const Account& account) const;
 	bool operator==(const Account& account) const;
 	Account& operator=(const Account& account);
-	void open_locks();
 	int get_id();
 	int get_pass();
 	int rd_balance();
