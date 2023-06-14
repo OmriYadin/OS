@@ -273,9 +273,26 @@ void* operations(void* args){
 					(iter->second).rd_wr.wr_entry();
 					bank_rd_wr->wr_exit();
 					lock(log_lock);
-					*log << atm_id << ": New account id is " << id <<
-							" with password " << pass << " and initial balance "
-							<< bal << endl;
+					if (pass < 10){
+						*log << atm_id << ": New account id is " << id <<
+								" with password 000" << pass << " and initial balance "
+								<< bal << endl;
+					}
+					else if (pass < 100){
+						*log << atm_id << ": New account id is " << id <<
+								" with password 00" << pass << " and initial balance "
+								<< bal << endl;
+					}
+					else if (pass < 1000){
+						*log << atm_id << ": New account id is " << id <<
+								" with password 0" << pass << " and initial balance "
+								<< bal << endl;
+					}
+					else {
+						*log << atm_id << ": New account id is " << id <<
+								" with password " << pass << " and initial balance "
+								<< bal << endl;
+					}
 					unlock(log_lock);
 					sleep(1);
 					(iter->second).rd_wr.wr_exit();
@@ -611,9 +628,26 @@ void* print_screen(void* args){
 			int cur_bal = (iter->second).rd_balance();
 			int cur_pass = (iter->second).get_pass();
 			int cur_id = (iter->second).get_id();
-			cout << "Account " << cur_id << ": Balance - " << cur_bal <<
-					" $, Acccount Password - " << cur_pass;
-			cout << endl;
+			if (cur_pass < 10){
+				cout << "Account " << cur_id << ": Balance - " << cur_bal <<
+						" $, Acccount Password - 000" << cur_pass;
+				cout << endl;
+			}
+			else if (cur_pass < 100){
+				cout << "Account " << cur_id << ": Balance - " << cur_bal <<
+						" $, Acccount Password - 00" << cur_pass;
+				cout << endl;
+			}
+			else if (cur_pass < 1000){
+				cout << "Account " << cur_id << ": Balance - " << cur_bal <<
+						" $, Acccount Password - 0" << cur_pass;
+				cout << endl;
+			}
+			else {
+				cout << "Account " << cur_id << ": Balance - " << cur_bal <<
+						" $, Acccount Password - " << cur_pass;
+				cout << endl;
+			}
 			(iter->second).rd_wr.rd_exit();
 		}
 		
