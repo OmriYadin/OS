@@ -26,7 +26,7 @@ void send_ack(int sockfd, int ack_num, fstream* file, char* file_name,
 		struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
 int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 		fd_set* rd_set, char* file_name , unsigned short max_resends, int* err_cnt, 
-		struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
+		struct sockaddr_in* cli_addr, socklen_t cli_addrlen, unsigned short timeout);
 void send_error(int sockfd, unsigned short code, char* msg,
 		fstream* file, char* file_name, struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
 
@@ -73,6 +73,9 @@ int main(int argc, char** argv){
 	unsigned short port = (unsigned short)port_int;
 	unsigned short timeout = (unsigned short)timeout_int;
 	unsigned short max_resends = (unsigned short)max_resends_int;
+	char hostname[300];
+	gethostname(hostname, 300);
+	cout << hostname << endl;
 	struct sockaddr_in ser_addr;
 	memset(&ser_addr, 0, sizeof(ser_addr));
 	ser_addr.sin_family = AF_INET;
@@ -104,9 +107,10 @@ void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resen
 	memset(&cli_addr, 0, sizeof(cli_addr));
 	socklen_t cli_addrlen;
 	struct pck_wrq wrq;
-	ssize_t packet_size = recvfrom(sockfd, (void*)&wrq, BUF_MAX_LEN, MSG_WAITALL, 
+	memset(&wrq, 0, sizeof(wrq));
+	ssize_t packet_size = recvfrom(sockfd, (void*)&wrq, BUF_MAX_LEN, 0, 
 			(struct sockaddr*)&cli_addr, &cli_addrlen);
-	cout << packet_size << endl;
+	wrq.opcode = ntohs(wrq.opcode);
 	if (packet_size <= 0){
 		perror("TTFTP_ERROR:");
 		exit(ERROR);
@@ -132,7 +136,7 @@ void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resen
 	num_count++;
 	while(true){
 		int data_rec =  get_data(sockfd, &new_file, (const struct timeval)tout, &num_count,
-				&rd_set, file_name, max_resends, &err_cnt, &cli_addr, cli_addrlen);
+				&rd_set, file_name, max_resends, &err_cnt, &cli_addr, cli_addrlen, timeout);
 		if(data_rec == FATAL_ERR){
 			new_file.close();
 			remove(file_name);
@@ -144,6 +148,9 @@ void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resen
 		else if (data_rec < BUF_MAX_LEN){
 			break;
 		}
+		tout.tv_sec = timeout;
+		tout.tv_usec = 0;
+		FD_ZERO(&rd_set);
 	}
 	FD_CLR(sockfd, &rd_set);
 }
@@ -151,10 +158,10 @@ void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resen
 
 void wrq_check(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_error err;
-	err.opcode = 5;
-	err.err_code = 7;
+	err.opcode = htons(5);
+	err.err_code = htons(7);
 	strcpy(err.err_msg, "Unknown user");
-	if(sendto(sockfd, (const void*)&err, sizeof(err), 0, 
+	if(sendto(sockfd, (const void*)&err, sizeof(err), MSG_CONFIRM, 
 			(const struct sockaddr*)cli_addr, cli_addrlen) < 0){
 		perror("TTFTP_ERROR:");
 		exit(ERROR);
@@ -165,10 +172,10 @@ void wrq_check(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 
 void file_exists(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_error err;
-	err.opcode = 5;
-	err.err_code = 6;
+	err.opcode = htons(5);
+	err.err_code = htons(6);
 	strcpy(err.err_msg, "File already exists");
-	if(sendto(sockfd, (const void*)&err, sizeof(err), 0, 
+	if(sendto(sockfd, (const void*)&err, sizeof(err), MSG_CONFIRM, 
 			(const struct sockaddr*)cli_addr, cli_addrlen) < 0){
 		perror("TTFTP_ERROR:");
 		exit(ERROR);
@@ -180,9 +187,11 @@ void file_exists(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen
 void send_ack(int sockfd, int ack_num, fstream* file, char* file_name,
 		struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_ack ack;
-	ack.opcode = 4;
-	ack.bl_num = ack_num;
-	if(sendto(sockfd, (const void*)&ack, sizeof(ack), 0,
+	cout << ack_num << "ACK-B" << endl;
+	ack.opcode = htons(4);
+	ack.bl_num = htons(ack_num);
+	cout <<ack.opcode << "ACK-BB" << endl;
+	if(sendto(sockfd, (const void*)&ack, sizeof(ack), MSG_CONFIRM,
 			(const struct sockaddr*)cli_addr, cli_addrlen) < 0){
 		file->close();
 		remove(file_name);
@@ -198,10 +207,10 @@ void send_error(int sockfd, unsigned short code, char* msg,
 		fstream* file, char* file_name,
 		struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_error err;
-	err.opcode = 5;
-	err.err_code = code;
+	err.opcode = htons(5);
+	err.err_code = htons(code);
 	strcpy(err.err_msg, msg);
-	if(sendto(sockfd, (const void*)&err, sizeof(err), 0,
+	if(sendto(sockfd, (const void*)&err, sizeof(err), MSG_CONFIRM,
 			(const struct sockaddr*)cli_addr, cli_addrlen) < 0){
 		file->close();
 		remove(file_name);
@@ -213,8 +222,9 @@ void send_error(int sockfd, unsigned short code, char* msg,
 
 int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 		fd_set* rd_set, char* file_name, unsigned short max_resends, int* err_cnt,
-		struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
-	int tmp = select(sockfd+1, rd_set, NULL, NULL, &tout);
+		struct sockaddr_in* cli_addr, socklen_t cli_addrlen, unsigned short timeout){
+	cout << "We got to get data" << endl;
+	int tmp = select(sockfd+1, NULL, rd_set, NULL, &tout);
 	while(tmp <= 0){
 		if(tmp < 0){
 			file->close();
@@ -229,34 +239,49 @@ int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 			return FATAL_ERR;
 		}
 		send_ack(sockfd, (*bl_num)-1, file, file_name, cli_addr, cli_addrlen);
-		tmp = select(sockfd+1, rd_set, NULL, NULL, &tout);
+		tout.tv_sec = timeout;
+		tout.tv_usec = 0;
+		FD_ZERO(rd_set);
+		tmp = select(sockfd+1, NULL, rd_set, NULL, &tout);
+		cout << "error count is: " << *err_cnt << endl;
 	}
+	cout << "We got to after select" << endl; 
 	struct pck_data data;
 	memset(&data, 0, sizeof(data));
 	struct sockaddr_in tmp_addr;	
 	memset(&tmp_addr, 0, sizeof(tmp_addr));
 	socklen_t tmp_addrlen;
+	cout << "We wait for data" << endl;
 	ssize_t bytes_rec = recvfrom(sockfd, (void*)&data, BUF_MAX_LEN, 0, 
 			(struct sockaddr*)&tmp_addr, &tmp_addrlen);
+	cout << "We recieved data" << endl;
+	cout << tmp_addr.sin_port << " " << cli_addr->sin_port << endl;
+	cout << tmp_addr.sin_addr.s_addr << " " << cli_addr->sin_addr.s_addr << endl;
 	if((tmp_addr.sin_port != cli_addr->sin_port) ||
 			(tmp_addr.sin_addr.s_addr != cli_addr->sin_addr.s_addr)){
 		send_error(sockfd, 4, (char*)"Unexpected packet", file, file_name, &tmp_addr, tmp_addrlen);
 		return NON_FATAL_ERR;
 	}
+	cout << "Port is correct" <<endl;
+	data.opcode = ntohs(data.opcode);
+	data.bl_num = ntohs(data.bl_num);
 	if(data.opcode != 3){
 		send_error(sockfd, 4, (char*)"Unexpected packet", file, file_name, cli_addr, cli_addrlen);
+		cout << "opcode is not ok" << endl;
 	}
 	else if(data.bl_num == (*bl_num)-1){
 		send_error(sockfd, 0, (char*)"Bad block number", file, file_name, cli_addr, cli_addrlen);
 		*err_cnt += 1;
 		if(*err_cnt > max_resends){
 			send_error(sockfd, 0, (char*)"Abandoning file transmission", file, file_name, cli_addr, cli_addrlen);
+			cout << "block num is not ok" << endl;
 			return FATAL_ERR;
 		}
 		return NON_FATAL_ERR;
 	}
 	else if (data.bl_num != *bl_num){
 		send_error(sockfd, 0, (char*)"Bad block number", file, file_name, cli_addr, cli_addrlen);
+		cout << "block num is not ok" << endl;
 		return FATAL_ERR;
 	}
 	else {
@@ -265,5 +290,6 @@ int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 		*bl_num += 1;
 		*err_cnt = 0;
 	}
+	cout << "data was added. end og get data" << endl;
 	return bytes_rec;
 }
