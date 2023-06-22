@@ -82,6 +82,7 @@ int main(int argc, char** argv){
 	
 	while(true){
 		int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+		cout << sockfd << endl;
 		if (sockfd == -1){
 			perror("TTFTP_ERROR:");
 			return ERROR;
@@ -99,11 +100,11 @@ int main(int argc, char** argv){
 
 void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resends){
 	int num_count = 0;
-	struct sockaddr_in cli_addr = {0};
-	memset()
+	struct sockaddr_in cli_addr;
+	memset(&cli_addr, 0, sizeof(cli_addr));
 	socklen_t cli_addrlen;
 	struct pck_wrq wrq;
-	ssize_t packet_size = recvfrom(sockfd, (void*)&wrq, BUF_MAX_LEN, 0, 
+	ssize_t packet_size = recvfrom(sockfd, (void*)&wrq, BUF_MAX_LEN, MSG_WAITALL, 
 			(struct sockaddr*)&cli_addr, &cli_addrlen);
 	cout << packet_size << endl;
 	if (packet_size <= 0){
@@ -230,8 +231,10 @@ int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 		send_ack(sockfd, (*bl_num)-1, file, file_name, cli_addr, cli_addrlen);
 		tmp = select(sockfd+1, rd_set, NULL, NULL, &tout);
 	}
-	struct pck_data data = {0};
-	struct sockaddr_in tmp_addr = {0};
+	struct pck_data data;
+	memset(&data, 0, sizeof(data));
+	struct sockaddr_in tmp_addr;	
+	memset(&tmp_addr, 0, sizeof(tmp_addr));
 	socklen_t tmp_addrlen;
 	ssize_t bytes_rec = recvfrom(sockfd, (void*)&data, BUF_MAX_LEN, 0, 
 			(struct sockaddr*)&tmp_addr, &tmp_addrlen);
