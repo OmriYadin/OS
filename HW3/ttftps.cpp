@@ -23,13 +23,13 @@ using namespace std;
 void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resends);
 void wrq_check(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
 void file_exists(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
-void send_ack(int sockfd, int ack_num, fstream* file, char* file_name, 
-		struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
+int send_ack(int sockfd, int ack_num,struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
 int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 		fd_set* rd_set, char* file_name , unsigned short max_resends, int* err_cnt, 
 		struct sockaddr_in* cli_addr, socklen_t cli_addrlen, unsigned short timeout);
-void send_error(int sockfd, unsigned short code, char* msg,
-		fstream* file, char* file_name, struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
+int send_error(int sockfd, unsigned short code, char* msg,
+		struct sockaddr_in* cli_addr, socklen_t cli_addrlen);
+void sys_err(fstream* file, char* file_name);
 
 struct pck_wrq {
 	unsigned short opcode;
@@ -78,17 +78,14 @@ int main(int argc, char** argv){
 	ser_addr.sin_family = AF_INET;
 	ser_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	ser_addr.sin_port = htons(port);
-	//struct sockaddr_in cli_addr;
 	
 	while(true){
 		int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 		if (sockfd == -1){
-			perror("TTFTP_ERROR");
-			return ERROR;
+			sys_err(NULL, NULL);
 		}
 		if(bind(sockfd, (struct sockaddr*)&ser_addr, sizeof(ser_addr)) == -1){
-			perror("TTFTP_ERROR");
-			return ERROR;
+			sys_err(NULL, NULL);
 		}
 		udp_connection(sockfd, timeout, max_resends);
 		close(sockfd);
@@ -100,34 +97,35 @@ int main(int argc, char** argv){
 void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resends){
 	int num_count = 0;
 	struct sockaddr_in cli_addr;
-	memset(&cli_addr, 0, sizeof(cli_addr));
+	//memset(&cli_addr, 0, sizeof(cli_addr));
 	socklen_t cli_addrlen = sizeof(cli_addr);
 	struct pck_wrq wrq;
-	memset(&wrq, 0, sizeof(wrq));
-	ssize_t packet_size = recvfrom(sockfd, (void*)&wrq, sizeof(wrq), MSG_TRUNC, 
-			(struct sockaddr*)&cli_addr, &cli_addrlen);
-	wrq.opcode = ntohs(wrq.opcode);
-	if (packet_size <= 0){
-		perror("TTFTP_ERROR");
-		exit(ERROR);
+	//memset(&wrq, 0, sizeof(wrq));
+	if (recvfrom(sockfd, (void*)&wrq, sizeof(wrq), MSG_TRUNC,
+			(struct sockaddr*)&cli_addr, &cli_addrlen) < 0){
+		sys_err(NULL, NULL);
 	}
+	wrq.opcode = ntohs(wrq.opcode);
 	if(wrq.opcode != 2){
-		wrq_check(sockfd, &cli_addr, cli_addrlen);
+		if(send_error(sockfd, 7, (char*)"Unknown user", &cli_addr, cli_addrlen) < 0)
+			sys_err(NULL, NULL);
 		return;
 	}
-	char* file_name = strtok(wrq.strings, "\0");
-	int acc = access(file_name, F_OK);
-	if(!acc){
-		file_exists(sockfd, &cli_addr, cli_addrlen);
+	char file_name[BUF_MAX_LEN];
+	strcpy(file_name, wrq.strings);
+	if(!access(file_name, F_OK)){
+		if(send_error(sockfd, 6, (char*)"File already exists", &cli_addr, cli_addrlen) < 0)
+			sys_err(NULL, NULL);
 		return;
 	}
 	else if (errno != ENOENT){
-		perror("TTFTP_ERROR");
-		exit(ERROR);
+		sys_err(NULL, NULL);
 	}
 	fstream new_file;
-	new_file.open(file_name, ios_base::out);
-	send_ack(sockfd, num_count, &new_file, file_name, &cli_addr, cli_addrlen);
+	new_file.open(file_name, ios_base::out | ios_base::binary);
+	if(send_ack(sockfd, num_count, &cli_addr, cli_addrlen) < 0){
+		sys_err(&new_file, file_name);
+	}
 	struct timeval tout;
 	fd_set rd_set;
 	int err_cnt = 0;
@@ -151,10 +149,20 @@ void udp_connection(int sockfd, unsigned short timeout, unsigned short max_resen
 			break;
 		}
 	}
+	new_file.close();
 	FD_CLR(sockfd, &rd_set);
 }
 
+void sys_err(fstream* file, char* file_name){
+	if(file != NULL){
+		file->close();
+		remove(file_name);
+	}
+	perror("TTFTP_ERROR");
+	exit(ERROR);
+}
 
+/*
 void wrq_check(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_error err;
 	memset(&err, 0, sizeof(err));
@@ -183,28 +191,23 @@ void file_exists(int sockfd, struct sockaddr_in* cli_addr, socklen_t cli_addrlen
 	}
 	return;
 }
+*/
 
-
-void send_ack(int sockfd, int ack_num, fstream* file, char* file_name,
-		struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
+int send_ack(int sockfd, int ack_num, struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_ack ack;
 	memset(&ack, 0, sizeof(ack));
 	ack.opcode = htons(4);
 	ack.bl_num = htons(ack_num);
 	if(sendto(sockfd, (const void*)&ack, sizeof(ack), MSG_CONFIRM,
 			(const struct sockaddr*)cli_addr, cli_addrlen) < 0){
-		file->close();
-		remove(file_name);
-		perror("TTFTP_ERROR");
-		exit(ERROR);
+		return -1;
 	}
-	return;
+	return 0;
 }
 
 
 
-void send_error(int sockfd, unsigned short code, char* msg,
-		fstream* file, char* file_name,
+int send_error(int sockfd, unsigned short code, char* msg,
 		struct sockaddr_in* cli_addr, socklen_t cli_addrlen){
 	struct pck_error err;
 	memset(&err, 0, sizeof(err));
@@ -213,12 +216,9 @@ void send_error(int sockfd, unsigned short code, char* msg,
 	strcpy(err.err_msg, msg);
 	if(sendto(sockfd, (const void*)&err, sizeof(err), MSG_CONFIRM,
 			(const struct sockaddr*)cli_addr, cli_addrlen) < 0){
-		file->close();
-		remove(file_name);
-		perror("TTFTP_ERROR");
-		exit(ERROR);
+		return -1;
 	}
-	return;
+	return 0;
 }
 
 int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
@@ -227,18 +227,18 @@ int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 	int tmp = select(sockfd+1, NULL, rd_set, NULL, &tout);
 	while(tmp <= 0){
 		if(tmp < 0){
-			file->close();
-			remove(file_name);
-			perror("TTFTP_ERROR");
-			exit(ERROR);
+			sys_err(file, file_name);
 		}
 		*err_cnt += 1;
 		if(*err_cnt > max_resends){
-			send_error(sockfd, 0, (char*)"Abandoning file transmission", file, file_name,
-					cli_addr, cli_addrlen);
+			if(send_error(sockfd, 0, (char*)"Abandoning file transmission",
+					cli_addr, cli_addrlen) < 0)
+				sys_err(file, file_name);
 			return FATAL_ERR;
 		}
-		send_ack(sockfd, (*bl_num)-1, file, file_name, cli_addr, cli_addrlen);
+		if(send_ack(sockfd, (*bl_num)-1, cli_addr, cli_addrlen) < 0){
+			sys_err(file, file_name);
+		}
 		tout.tv_sec = timeout;
 		tout.tv_usec = 0;
 		FD_ZERO(rd_set);
@@ -246,43 +246,50 @@ int get_data(int sockfd, fstream* file, struct timeval tout, int* bl_num,
 		tmp = select(sockfd+1, NULL, rd_set, NULL, &tout);
 	}
 	struct pck_data data;
-	memset(&data, 0, sizeof(data));
+	//memset(&data, 0, sizeof(data));
 	struct sockaddr_in tmp_addr;	
-	memset(&tmp_addr, 0, sizeof(tmp_addr));
+	//memset(&tmp_addr, 0, sizeof(tmp_addr));
 	socklen_t tmp_addrlen = sizeof(tmp_addr);
-	ssize_t bytes_rec = recvfrom(sockfd, (void*)&data, sizeof(data), MSG_TRUNC, 
+	ssize_t bytes_rec = recvfrom(sockfd, (void*)&data, sizeof(data), MSG_TRUNC,
 			(struct sockaddr*)&tmp_addr, &tmp_addrlen);
 	if (bytes_rec <= 0){
-		perror("TTFTP_ERROR");
-		exit(ERROR);
+		sys_err(file, file_name);
 	}
 
 	if((tmp_addr.sin_port != cli_addr->sin_port) ||
 			(tmp_addr.sin_addr.s_addr != cli_addr->sin_addr.s_addr)){
-		send_error(sockfd, 4, (char*)"Unexpected packet", file, file_name, &tmp_addr, tmp_addrlen);
+		if(send_error(sockfd, 4, (char*)"Unexpected packet", &tmp_addr, tmp_addrlen) < 0)
+			sys_err(file, file_name);
+
 		return NON_FATAL_ERR;
 	}
 	data.opcode = ntohs(data.opcode);
 	data.bl_num = ntohs(data.bl_num);
 	if(data.opcode != 3){
-		send_error(sockfd, 4, (char*)"Unexpected packet", file, file_name, cli_addr, cli_addrlen);
+		if(send_error(sockfd, 4, (char*)"Unexpected packet", cli_addr, cli_addrlen) < 0)
+			sys_err(file, file_name);
 	}
 	else if(data.bl_num == (*bl_num)-1){
-		send_error(sockfd, 0, (char*)"Bad block number", file, file_name, cli_addr, cli_addrlen);
+		if(send_error(sockfd, 0, (char*)"Bad block number", cli_addr, cli_addrlen) < 0)
+			sys_err(file, file_name);
 		*err_cnt += 1;
 		if(*err_cnt > max_resends){
-			send_error(sockfd, 0, (char*)"Abandoning file transmission", file, file_name, cli_addr, cli_addrlen);
+			if(send_error(sockfd, 0, (char*)"Abandoning file transmission", cli_addr, cli_addrlen) < 0)
+				sys_err(file, file_name);
 			return FATAL_ERR;
 		}
 		return NON_FATAL_ERR;
 	}
 	else if (data.bl_num != *bl_num){
-		send_error(sockfd, 0, (char*)"Bad block number", file, file_name, cli_addr, cli_addrlen);
+		if(send_error(sockfd, 0, (char*)"Bad block number", cli_addr, cli_addrlen) < 0)
+			sys_err(file, file_name);
 		return FATAL_ERR;
 	}
 	else {
-		*file << data.buffer;
-		send_ack(sockfd, (*bl_num), file, file_name, cli_addr, cli_addrlen);
+		file->write(data.buffer, bytes_rec - 4);
+		if(send_ack(sockfd, (*bl_num), cli_addr, cli_addrlen) < 0){
+			sys_err(file, file_name);
+		}
 		*bl_num += 1;
 		*err_cnt = 0;
 	}
